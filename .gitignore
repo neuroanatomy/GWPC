@@ -4,5 +4,8 @@
 /data/derived
 /scratch
 
-log/
+log*/
 *.log
+*.bak
+
+octave-workspace
