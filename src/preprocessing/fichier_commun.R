@@ -4,7 +4,14 @@ script.dir <- {
   initial.options <- commandArgs(trailingOnly = FALSE)
   file.arg.name <- "--file="
   script.name <- sub(file.arg.name, "", initial.options[grep(file.arg.name, initial.options)])
-  if (length(script.name)) dirname(script.name)  else getwd()
+  sourceDir <- getSrcDirectory(function(dummy) {dummy})
+  if (length(script.name)) { # called from command
+    (dirname(script.name))
+  } else if (nchar(sourceDir)) { # called with source
+    sourceDir
+  } else if (rstudioapi::isAvailable()) { # called from RStudio
+    dirname(rstudioapi::getSourceEditorContext()$path)
+  } else getwd()
 }
 
 base.dir <- system(paste("cd", script.dir, "&& git rev-parse --show-toplevel"), intern=T)
@@ -113,7 +120,7 @@ qc_2_surface <- plyr::rename(qc_2_surface, c("Comments_1"="Comments_Surface"))
 
 setdiff(qc_2_surface[,1], qc_2_segmentation[,1])
 setdiff(qc_2_segmentation[,1], qc_2_surface[,1])
-# ok : les seules diff?rences = 6 x "0" (pas de segmentation), et 2 x "3" pour des "_ses-1" (bad)
+# ok : les seules diff?rences = 5 x "0" (pas de segmentation), et 2 x "3" pour des "_ses-1" (bad)
 
 # association segmentation + surface pour abide 2
 abide2_qc_joined <- merge(qc_2_surface, qc_2_segmentation, by="SUB_ID", all=TRUE)
@@ -134,21 +141,31 @@ irmab1$dataset="Abide1"
 irmab2$dataset="Abide2"
 # les noms de colonnes sont deja les memes, donc on les assemble
 irm_total <- merge (irmab1, irmab2, all=T)
+# extraction du vrai SUB_ID
+irm_total$SUB_ID <- sub("sub-([^_]*)(_ses-.)?", "\\1", irm_total$SUB_ID)
+
+# list of all subjects with MRI:
+sub_total <- irm_total$SUB_ID
+sub_total_dx <- merge(data.frame(SUB_ID=unique(sub_total)), phenot_total, all.x=T)$DX_GROUP
+table(sub_total_dx)
 
 # supression des irm non segmentes qui ont donc un NA dans irm_total$fsid (et un 0 dans les QC)
-irm_total <- subset(irm_total, !is.na(irm_total$fsid) )
+irm_total <- subset(irm_total, !is.na(irm_total$fsid))
 
-# passage du SUB_ID en 1ere colonne pour phenot_total
-# interet?
-# phenot_totalbis <- phenot_total1[,c(2,1,3:364)]
-# phenot_totalbis$SUB_ID <- as.character(phenot_totalbis$SUB_ID)
+# list of all subjects with segmented MRI:
+sub_seg <- irm_total$SUB_ID
+sub_seg_dx <- merge(data.frame(SUB_ID=unique(sub_seg)), phenot_total, all.x=T)$DX_GROUP
+table(sub_seg_dx)
+
+# list of subjects with failed segmentation:
+sub_not_seg <- setdiff(sub_total, sub_seg)
+sub_not_seg_dx <- merge(data.frame(SUB_ID=unique(sub_not_seg)), phenot_total, all.x=T)$DX_GROUP
+table(sub_not_seg_dx)
 
 # ajout du numero de session
 irm_total$SES_ID <- 1
 m <- regexpr("(?<=_ses-).", irm_total$fsid, perl=T)
 irm_total$SES_ID[m > 1] <- as.numeric(regmatches(irm_total$fsid, m))
-# extraction du vrai SUB_ID
-irm_total$SUB_ID <- sub("sub-([^_]*)(_ses-.)?", "\\1", irm_total$SUB_ID)
 
 # elimination des doublons
 # elimination des sujets de Abide 2 qui sont aussi dans Abide 1
@@ -157,7 +174,24 @@ irm_total <- subset(irm_total, !(dataset=="Abide2" & SUB_ID %in% subset(irm_tota
 irm_total <- subset(irm_total, !(irm_total$fsid == "sub-28705_ses-2") )
 # recherche de doublons supplementaires : aucun
 irm_total$SUB_ID[duplicated(irm_total$SUB_ID)]
-  
+
+# load motion tables
+motab1 <- read.csv(file=file.path(raw.dir, "motion-abide1.tsv"), sep='\t', header=F, col.names=c("Subject", "motion"))
+motab2 <- read.csv(file=file.path(raw.dir, "motion-abide2.tsv"), sep="\t", header=F, col.names=c("Subject", "motion"))
+motion12 <- rbind(motab1, motab2)
+motion12$SUB_ID <- as.numeric(sub("(sub-)?([^_]*)(_ses-.)?", "\\2", motion12$Subject))
+motion12$SES_ID <- as.numeric(sub(".*_ses-(.+)", "\\1", motion12$Subject))
+
+# identify and remove duplicates
+motdup1 <- motion12[duplicated(motion12[,c("SUB_ID", "SES_ID")], fromLast = T),]
+motdup2 <- motion12[duplicated(motion12[,c("SUB_ID", "SES_ID")]),]
+motdup <- merge(motdup1[,c("SUB_ID", "SES_ID", "motion")], motdup2[,c("SUB_ID", "SES_ID", "motion")], by=c("SUB_ID", "SES_ID"))
+
+motion12 <- motion12[!duplicated(motion12[,c("SUB_ID", "SES_ID")]),]
+
+# add motion values to irm_total
+irm_total <- merge(irm_total, motion12[,c("SUB_ID", "SES_ID", "motion")], by=c("SUB_ID", "SES_ID"), all.x=T, all.y=F)
+
 
 #parmi les SUB_ID de phenot_total, elimination des numeros de SUB_ID absents dans irm_total2
 phenot_total<- subset(phenot_total, SUB_ID %in% irm_total$SUB_ID)
@@ -170,7 +204,7 @@ phenot_total<- subset(phenot_total, SUB_ID %in% irm_total$SUB_ID)
 setdiff(irm_total$SUB_ID, phenot_total$SUB_ID)
 
 #association en un seul fichier (abide_total) des donnees phenotypiques (phenot_total) et IRM (irm_total) :
-abide_total <- merge(phenot_total, irm_total, by="SUB_ID", all = TRUE)
+abide_total <- merge(phenot_total, irm_total, by="SUB_ID", all.y = TRUE)
 
 
 # DX_GROUP binaire (1:TSA, 2: control) a transformer en categoriel :
@@ -251,12 +285,30 @@ sub_qc_Seg <- abide_total$QC_Segmentation %in% c(NA, 1, 2)
 # il faut donc enlever les lignes avec des 0, 3 et 4 ET 10 dans l'un de ces 5 QC :
 
 abide_final <- abide_total[sub_qc_LL & sub_qc_LM & sub_qc_RL & sub_qc_RM & sub_qc_Seg,]
+table(abide_final$DX_GROUP)
 
 # exclus pour QC :
 QC3_0_4_10 <- abide_total[!(sub_qc_LL & sub_qc_LM & sub_qc_RL & sub_qc_RM & sub_qc_Seg),]
+table(QC3_0_4_10$DX_GROUP)
 write.table(QC3_0_4_10, file=file.path(derived.dir, "QC3_0_4_10.txt"), sep="\t", quote=FALSE, row.names = FALSE)
 
-# enlever les lignes si un SITE_ID n'a que des ASD ou que des control (vrai pour NYU_2 : 22 ASD et 0 control et KUL_3: 20 ASD et 0 control)
+# donne le fsid comme nom de ligne
+# row.names(abide_total) <- abide_total$fsid
+row.names(abide_final) <- abide_final$fsid
+
+# pour analyse sur l'ensemble des noeuds : cr?ation d'un tableau court (abide_final_short) avec seulement les variables d'interet
+abide_final_short <- subset(abide_final[, c("SUB_ID", "SITE_ID", "DX_GROUP", "AGE_AT_SCAN", "SEX", "FIQ_total", "dataset", "fsid")])
+abide_final_short <- na.omit(abide_final_short)
+table(abide_final[na.action(abide_final_short), "DX_GROUP"])
+
+# elimination des sujets avec donnees manquantes dans abide_final:
+abide_final <- abide_final[row.names(abide_final_short),]
+table(abide_final$DX_GROUP)
+
+# number of subjects with imputed FIQ:
+sum(!is.na(abide_final$FIQ_total)) - sum(!is.na(abide_final$FIQ))
+
+# enlever les lignes si un SITE_ID n'a que des ASD ou que des control (vrai pour NYU_2 : 22 ASD et 0 control, KUL_3: 20 ASD et 0 control et SBL: 11 ASD et 0 control)
 for (site in unique(abide_final$SITE_ID)) {
   if (length(unique(subset(abide_final, SITE_ID==site, DX_GROUP, drop = TRUE))) == 1) {
     cat(sprintf("%s:", site))
@@ -267,17 +319,7 @@ for (site in unique(abide_final$SITE_ID)) {
 
 #on enleve les facteurs qui sont entierement nuls de la base de donnee (enlever les SITE pour lesquels il ne reste aucun sujet, pour ne pas les compter comme un niveau de facteur) : 
 abide_final$SITE_ID <- factor(abide_final$SITE_ID)
-
-# donne le fsid comme nom de ligne
-# row.names(abide_total) <- abide_total$fsid
-row.names(abide_final) <- abide_final$fsid
-
-# pour analyse sur l'ensemble des noeuds : cr?ation d'un tableau court (abide_final_short) avec seulement les variables d'interet
-abide_final_short <- subset(abide_final[, c("SUB_ID", "SITE_ID", "DX_GROUP", "AGE_AT_SCAN", "SEX", "FIQ_total", "dataset", "fsid")])
-abide_final_short <- na.omit(abide_final_short)
-
-# elimination des sujets avec donnees manquantes dans abide_final:
-abide_final <- abide_final[row.names(abide_final_short),]
+table(abide_final$DX_GROUP)
 
 # abide_final = restant apr?s QC
 write.table(abide_final, file=file.path(derived.dir, "abide_final.txt"), sep="\t", quote=FALSE, row.names = FALSE)
@@ -299,15 +341,15 @@ dir.create(mod1dir, show=F, rec=T)
 
 # on extrait la matrice dans matlab :
 library(R.matlab)
-writeMat(con=file.path(mod1dir, "matrix_mod1.mat"),  X=matrix.mod1)
+writeMat(con=file.path(mod1dir, "matrix_mod.mat"),  X=matrix.mod1)
 #on extrait la matrice, le vecteur de noms de sujets et le vecteur avec variable d'interet :
 writeLines(as.character(as.numeric(colnames(matrix.mod1) == "DX_GROUPASD")), con=file.path(mod1dir, "contrast_ASD"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod1) == "SEXFemale")), con=file.path(mod1dir, "contrast_Female"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod1) == "AGE_AT_SCAN")), con=file.path(mod1dir, "contrast_age"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod1) == "FIQ_total")), con=file.path(mod1dir, "contrast_FIQ"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod1) == "DX_GROUPASD:SEXFemale")), con=file.path(mod1dir, "contrast_ASD_Female"), sep=" ")
-writeLines(subject_names, con=paste(mod1dir, "subject_names.txt", sep="/"), sep="\n")
-writeLines(col_names, con=paste(mod1dir, "col_names.txt", sep="/"), sep="\t")
+writeLines(subject_names, con=file.path(mod1dir, "subject_names.txt"), sep="\n")
+writeLines(col_names, con=file.path(mod1dir, "col_names.txt"), sep="\n")
 
 
 #creation pour analyse de tous les points irm de la matrice avec modele 2 : 
@@ -318,7 +360,7 @@ col_names2 <- colnames(matrix.mod2)
 
 mod2dir <- file.path(glmdir, "mod2")
 dir.create(mod2dir, show=F, rec=T)
-writeMat(con=file.path(mod2dir, "matrix_mod2.mat"),  X=matrix.mod2)
+writeMat(con=file.path(mod2dir, "matrix_mod.mat"),  X=matrix.mod2)
 writeLines(as.character(as.numeric(colnames(matrix.mod2) == "DX_GROUPASD")), con=file.path(mod2dir, "contrast_ASD"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod2) == "SEXFemale")), con=file.path(mod2dir, "contrast_Female"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod2) == "AGE_AT_SCAN")), con=file.path(mod2dir, "contrast_age"), sep=" ")
@@ -326,9 +368,10 @@ writeLines(as.character(as.numeric(colnames(matrix.mod2) == "FIQ_total")), con=f
 contrast_Site <- t(sapply(grep("^SITE_", col_names2, value=T), function(x) as.numeric(colnames(matrix.mod2) == x)))
 write.table(contrast_Site, file.path(mod2dir, "contrast_Site"), row.names=F, col.names=F)
 writeLines(subject_names2, con=file.path(mod2dir, "subject_names.txt"), sep="\n")
-writeLines(col_names2, con=file.path(mod2dir, "col_names.txt"), sep="\t")
+writeLines(col_names2, con=file.path(mod2dir, "col_names.txt"), sep="\n")
 
 
+# modele avec l'interaction diagnostic - site
 matrix.mod3 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + DX_GROUP*SITE_ID, data = abide_final)
 
 subject_names3 <- rownames(matrix.mod3)
@@ -336,7 +379,7 @@ col_names3 <- colnames(matrix.mod3)
 
 mod3dir <- file.path(glmdir, "mod3")
 dir.create(mod3dir, show=F, rec=T)
-writeMat(con=file.path(mod3dir, "matrix_mod3.mat"),  X=matrix.mod3)
+writeMat(con=file.path(mod3dir, "matrix_mod.mat"),  X=matrix.mod3)
 writeLines(as.character(as.numeric(colnames(matrix.mod3) == "DX_GROUPASD")), con=file.path(mod3dir, "contrast_ASD"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod3) == "SEXFemale")), con=file.path(mod3dir, "contrast_Female"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod3) == "AGE_AT_SCAN")), con=file.path(mod3dir, "contrast_age"), sep=" ")
@@ -344,11 +387,12 @@ writeLines(as.character(as.numeric(colnames(matrix.mod3) == "FIQ_total")), con=f
 contrast_Dx_Site <- t(sapply(grep("DX_GROUPASD:SITE_", col_names3, value=T), function(x) as.numeric(colnames(matrix.mod3) == x)))
 write.table(contrast_Dx_Site, file.path(mod3dir, "contrast_Dx_Site"), row.names=F, col.names=F)
 writeLines(subject_names3, con=file.path(mod3dir, "subject_names.txt"), sep="\n")
-writeLines(col_names3, con=file.path(mod3dir, "col_names.txt"), sep="\t")
+writeLines(col_names3, con=file.path(mod3dir, "col_names.txt"), sep="\n")
 
 
 # creation d'un sous groupe par site pour anlalyse des intensites sur un environnment homogene :
-for (site in unique(abide_final$SITE_ID)) {
+site_list <- levels(abide_final$SITE_ID)
+for (site in site_list) {
     data_site <- subset(abide_final, abide_final$SITE_ID==site)
     n_sexes <- length(unique(data_site$SEX))
     if (n_sexes == 1) {
@@ -368,8 +412,9 @@ for (site in unique(abide_final$SITE_ID)) {
     writeLines(as.character(as.numeric(col_names_site == "AGE_AT_SCAN")), con=file.path(mod_dir_site, "contrast_age"), sep=" ")
     writeLines(as.character(as.numeric(col_names_site == "FIQ_total")), con=file.path(mod_dir_site, "contrast_FIQ"), sep=" ")
     writeLines(subject_names_site, con=file.path(mod_dir_site, "subject_names.txt"), sep="\n")
-    writeLines(col_names_site, con=file.path(mod_dir_site, "col_names.txt"), sep="\t")
+    writeLines(col_names_site, con=file.path(mod_dir_site, "col_names.txt"), sep="\n")
 }
+writeLines(site_list, con=file.path(glmdir, "sites.txt"))
 
 
 # creation d'un fichier abide_final que avec les QC 10 enleves pour voir si change les resultats : 
@@ -391,10 +436,92 @@ subject_names10 <- rownames(matrix.mod10)
 col_names10 <- colnames(matrix.mod10)
 mod10dir <- file.path(glmdir, "sauf_10")
 dir.create(mod10dir, show=F, rec=T)
-writeMat(con=file.path(mod10dir, "matrix_mod10.mat"),  X=matrix.mod10)
+writeMat(con=file.path(mod10dir, "matrix_mod.mat"),  X=matrix.mod10)
 writeLines(as.character(as.numeric(colnames(matrix.mod10) == "DX_GROUPASD")), con=file.path(mod10dir, "contrast_ASD"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod10) == "SEXFemale")), con=file.path(mod10dir, "contrast_Female"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod10) == "AGE_AT_SCAN")), con=file.path(mod10dir, "contrast_age"), sep=" ")
 writeLines(as.character(as.numeric(colnames(matrix.mod10) == "FIQ_total")), con=file.path(mod10dir, "contrast_FIQ"), sep=" ")
 writeLines(subject_names10, con=file.path(mod10dir, "subject_names.txt"), sep="\n")
-writeLines(col_names10, con=file.path(mod10dir, "col_names.txt"), sep="\t")
+writeLines(col_names10, con=file.path(mod10dir, "col_names.txt"), sep="\n")
+
+
+# modele avec l'interaction diagnostic - age
+matrix.mod4 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + DX_GROUP*AGE_AT_SCAN, data = abide_final)
+
+subject_names4 <- rownames(matrix.mod4)
+col_names4 <- colnames(matrix.mod4)
+
+mod4dir <- file.path(glmdir, "mod4")
+dir.create(mod4dir, show=F, rec=T)
+writeMat(con=file.path(mod4dir, "matrix_mod.mat"),  X=matrix.mod4)
+writeLines(as.character(as.numeric(colnames(matrix.mod4) == "DX_GROUPASD")), con=file.path(mod4dir, "contrast_ASD"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod4) == "SEXFemale")), con=file.path(mod4dir, "contrast_Female"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod4) == "AGE_AT_SCAN")), con=file.path(mod4dir, "contrast_age"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod4) == "FIQ_total")), con=file.path(mod4dir, "contrast_FIQ"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod4) == "DX_GROUPASD:AGE_AT_SCAN")), con=file.path(mod4dir, "contrast_ASD_age"), sep=" ")
+writeLines(subject_names4, con=file.path(mod4dir, "subject_names.txt"), sep="\n")
+writeLines(col_names4, con=file.path(mod4dir, "col_names.txt"), sep="\n")
+
+
+# modele sans le site en covariable
+matrix.mod5 <- model.matrix(~ DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total, data = abide_final)
+
+subject_names5 <- rownames(matrix.mod5)
+col_names5 <- colnames(matrix.mod5)
+
+mod5dir <- file.path(glmdir, "mod5")
+dir.create(mod5dir, show=F, rec=T)
+writeMat(con=file.path(mod5dir, "matrix_mod.mat"),  X=matrix.mod5)
+writeLines(as.character(as.numeric(colnames(matrix.mod5) == "DX_GROUPASD")), con=file.path(mod5dir, "contrast_ASD"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod5) == "SEXFemale")), con=file.path(mod5dir, "contrast_Female"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod5) == "AGE_AT_SCAN")), con=file.path(mod5dir, "contrast_age"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod5) == "FIQ_total")), con=file.path(mod5dir, "contrast_FIQ"), sep=" ")
+writeLines(subject_names5, con=file.path(mod5dir, "subject_names.txt"), sep="\n")
+writeLines(col_names5, con=file.path(mod5dir, "col_names.txt"), sep="\n")
+
+
+# modele avec les interactions variables-site (not working because too much variability between columns for FreeSurfer glm)
+matrix.mod6 <- model.matrix(~ (DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total) * SITE_ID, data = abide_final)
+# suppression des colonnes avec presque toujours la même valeur
+matrix.mod6 <- matrix.mod6[,-(which(apply(matrix.mod6[,-1], 2, sd)<0.05)+1)]
+
+subject_names6 <- rownames(matrix.mod6)
+col_names6 <- colnames(matrix.mod6)
+
+mod6dir <- file.path(glmdir, "mod6")
+dir.create(mod6dir, show=F, rec=T)
+writeMat(con=file.path(mod6dir, "matrix_mod.mat"),  X=matrix.mod6)
+writeLines(as.character(as.numeric(colnames(matrix.mod6) == "DX_GROUPASD")), con=file.path(mod6dir, "contrast_ASD"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod6) == "SEXFemale")), con=file.path(mod6dir, "contrast_Female"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod6) == "AGE_AT_SCAN")), con=file.path(mod6dir, "contrast_age"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod6) == "FIQ_total")), con=file.path(mod6dir, "contrast_FIQ"), sep=" ")
+contrast_Dx_Site <- t(sapply(grep("DX_GROUPASD:SITE_", col_names6, value=T), function(x) as.numeric(colnames(matrix.mod6) == x)))
+write.table(contrast_Dx_Site, file.path(mod6dir, "contrast_Dx_Site"), row.names=F, col.names=F)
+contrast_sex_Site <- t(sapply(grep("SEXFemale:SITE_", col_names6, value=T), function(x) as.numeric(colnames(matrix.mod6) == x)))
+write.table(contrast_sex_Site, file.path(mod6dir, "contrast_sex_Site"), row.names=F, col.names=F)
+contrast_age_Site <- t(sapply(grep("AGE_AT_SCAN:SITE_", col_names6, value=T), function(x) as.numeric(colnames(matrix.mod6) == x)))
+write.table(contrast_age_Site, file.path(mod6dir, "contrast_age_Site"), row.names=F, col.names=F)
+contrast_FIQ_Site <- t(sapply(grep("FIQ_total:SITE_", col_names6, value=T), function(x) as.numeric(colnames(matrix.mod6) == x)))
+write.table(contrast_FIQ_Site, file.path(mod6dir, "contrast_FIQ_Site"), row.names=F, col.names=F)
+writeLines(subject_names6, con=file.path(mod6dir, "subject_names.txt"), sep="\n")
+writeLines(col_names6, con=file.path(mod6dir, "col_names.txt"), sep="\n")
+
+
+# modele avec les interactions variables-site
+matrix.mod7 <- model.matrix(~DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total + SITE_ID + motion, data = abide_final)
+
+subject_names7 <- rownames(matrix.mod7)
+col_names7 <- colnames(matrix.mod7)
+
+mod7dir <- file.path(glmdir, "mod7")
+dir.create(mod7dir, show=F, rec=T)
+writeMat(con=file.path(mod7dir, "matrix_mod.mat"),  X=matrix.mod7)
+writeLines(as.character(as.numeric(colnames(matrix.mod7) == "DX_GROUPASD")), con=file.path(mod7dir, "contrast_ASD"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod7) == "SEXFemale")), con=file.path(mod7dir, "contrast_Female"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod7) == "AGE_AT_SCAN")), con=file.path(mod7dir, "contrast_age"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod7) == "FIQ_total")), con=file.path(mod7dir, "contrast_FIQ"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod7) == "motion")), con=file.path(mod7dir, "contrast_motion"), sep=" ")
+contrast_Site <- t(sapply(grep("^SITE_", col_names7, value=T), function(x) as.numeric(colnames(matrix.mod7) == x)))
+write.table(contrast_Site, file.path(mod7dir, "contrast_Site"), row.names=F, col.names=F)
+writeLines(subject_names7, con=file.path(mod7dir, "subject_names.txt"), sep="\n")
+writeLines(col_names7, con=file.path(mod7dir, "col_names.txt"), sep="\n")

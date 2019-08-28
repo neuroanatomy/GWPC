@@ -2,3 +2,7 @@
 .R*
 
 /data/derived
+/scratch
+
+log/
+*.log
