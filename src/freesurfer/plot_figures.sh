@@ -1,57 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
-script_dir=$(cd "$(dirname $0)" && pwd)
-project_dir=$(cd "$script_dir" && git rev-parse --show-toplevel)
+if [[ $# -ne 1 ]]; then
+    echo "Usage:"
+    echo "$0 config_file.sh"
+    exit 1
+fi
 
-fsdir=$project_dir/data/derived/fs-6.0.0
+config=$1
+# shellcheck source=plot_figures_config.sh
+source "$config"
 
-export SUBJECTS_DIR=$fsdir
-
-moddir=$fsdir/glm_mod2_thickness
-
-image=contrast_age/cache.th20.abs.sig.gamma.mgh
-# image=contrast_age/cw_ef.mgh
-# pour contraste
-threshold=1e-6,0.3
-# pour thickness
-# threshold=1e-6,0.02
-
-# image=contrast_ASD/cache.th20.abs.sig.gamma.mgh
-# image=contrast_ASD/cw_ef.mgh
-# pour contraste
-# threshold=1e-6,1
-# pour thickness
-# threshold=1e-6,0.06
-
-# image=contrast_Female/cache.th20.abs.sig.gamma.mgh
-# image=contrast_Female/cw_ef.mgh
-# pour contraste
-# threshold=1e-6,1.5
-# pour thickness
-# threshold=1e-6,0.1
-
-#image=contrast_FIQ/cache.th20.abs.sig.gamma.mgh
-#image=contrast_FIQ/cw_ef.mgh
-# pour contraste
-#threshold=0.01,0.04
-# pour thickness ?
-# threshold=0.01,0.04
-
-# image=contrast_motion/cw_ef.mgh
-# for contrast
-# threshold=1e-6,9
-# for thickness
-# threshold=1e-6,0.7
-
-surflabel=pial
-glmdir="*w-g*.fwhm10*"
-# glmdir="*thickness.*fwhm10*"
-
-surfaces=("$moddir"/?h.$glmdir/"$image")
+# shellcheck disable=SC2206
+surfaces=("$moddir"/?h.$glmdirpattern/"$image")
 [[ ! -f "${surfaces[0]}" ]] && echo "${surfaces[0]}": not found && exit 1
 surfaces=("${surfaces[@]#$moddir/?h.}")
-surfaces=($(printf '%q\n' "${surfaces[@]}" | sort -u))
+# remove duplicates
+readarray -t surfaces < <( printf '%q\n' "${surfaces[@]}" | sort -u )
 
 for surf in "${surfaces[@]}"; do
 	echo "$surf"
@@ -64,16 +29,16 @@ for surf in "${surfaces[@]}"; do
 		cmd[$hemi]=$SUBJECTS_DIR/fsaverage/surf/$hemi.$surflabel:overlay=$moddir/$hemi.$surf:overlay_threshold=$threshold:edgethickness=0:color=grey
 	done
 	# left hemisphere
-	echo "-ss $odir/lh.$surflabel.lat.png -noquit" > cmd.txt
-	echo "-cam azimuth 180 -ss $odir/lh.$surflabel.med.png -quit" >> cmd.txt
-	freeview -f "${cmd[lh]}" -layout 1 -viewport 3d -colorscale -cmd cmd.txt
+	echo "-ss $odir/lh.$surflabel.lat.png -noquit" > "$script_dir"/cmd.txt
+	echo "-cam azimuth 180 -ss $odir/lh.$surflabel.med.png -quit" >> "$script_dir"/cmd.txt
+	freeview -f "${cmd[lh]}" -layout 1 -viewport 3d -colorscale -cmd "$script_dir"/cmd.txt
 	# right hemisphere
-	echo "-ss $odir/rh.$surflabel.med.png -noquit" > cmd.txt
-	echo "-cam azimuth 180 -ss $odir/rh.$surflabel.lat.png -quit" >> cmd.txt
-	freeview -f "${cmd[rh]}" -layout 1 -viewport 3d -colorscale -cmd cmd.txt
+	echo "-ss $odir/rh.$surflabel.med.png -noquit" > "$script_dir"/cmd.txt
+	echo "-cam azimuth 180 -ss $odir/rh.$surflabel.lat.png -quit" >> "$script_dir"/cmd.txt
+	freeview -f "${cmd[rh]}" -layout 1 -viewport 3d -colorscale -cmd "$script_dir"/cmd.txt
 	# both hemisphere
-	echo "-cam azimuth 90 -ss $odir/combined.$surflabel.pos.png -quit" > cmd.txt
-	freeview -f "${cmd[lh]}" -f "${cmd[rh]}" -layout 1 -viewport 3d -ras 0 -18 15 -cc -colorscale -cmd cmd.txt
+	echo "-cam azimuth 90 -ss $odir/combined.$surflabel.pos.png -quit" > "$script_dir"/cmd.txt
+	freeview -f "${cmd[lh]}" -f "${cmd[rh]}" -layout 1 -viewport 3d -ras 0 -18 15 -cc -colorscale -cmd "$script_dir"/cmd.txt
 
 	# resize images
 	echo "resizing images..."

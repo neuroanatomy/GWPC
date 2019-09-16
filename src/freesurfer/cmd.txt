@@ -1,1 +1,0 @@
--cam azimuth 90 -ss /Volumes/cinq/rto/data/GWPC/data/derived/fs-6.0.0/glm_NYU/images/w-g.pct.30.fwhm10.mod/contrast_ASD/cw_ef/combined.pial.pos.png -quit

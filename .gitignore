@@ -3,6 +3,8 @@
 
 /data/derived
 /scratch
+/bin
+/src/freesurfer/cmd.txt
 
 log*/
 *.log

@@ -1,95 +1,70 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
-function submit {
-    mem=$1
-    shift
-    mkdir -p log
-    prog=`basename $1`
-    sbatch  -J      $prog \
-            --qos   ghfc \
-            -p      ghfc \
-            --mem   $mem \
-            -e      log/$prog-%j.out \
-            -o      log/$prog-%j.out \
-<<- EOF
-#!/bin/bash
-set -e
-echo "$@"
-$@
-EOF
-}
+if [[ $# -ne 1 ]]; then
+    echo "Usage:"
+    echo "$0 config_file.sh"
+    exit 1
+fi
 
-site=$1
-
-script_dir=$(cd "$(dirname $0)" && pwd)
-project_dir=$(cd "$script_dir" && git rev-parse --show-toplevel)
-
-derived_dir=$project_dir/data/derived
-fsdir=$derived_dir/fs-6.0.0
-odir=$fsdir/glm_mod2_thickness
-mod_dir=$derived_dir/glm-freesurfer/mod2
-subj_file=$mod_dir/subject_names.txt
-matrix=$mod_dir/matrix_mod.mat
-contrasts=($mod_dir/contrast_*)
-pcts=(.00 .10 .20 .30 .40 .50 .60)
-#pcts=(.30)
-measures=(`printf "w-g.pct%s.mgh\n" "${pcts[@]}"`)
-# measures+=(thickness)
-#measures+=(`printf "gm%s.mgh\n" "${pcts[@]}"`)
-#measures+=(wm_1mm.mgh)
-#widths=(5 10)
-widths=(10)
-# measure_cov=
-measure_cov=thickness
+config=$1
+# shellcheck source=run_glm_config.sh
+source "$config"
 
 export SUBJECTS_DIR=$fsdir
-subj_list=`cat $subj_file`
+readarray -t subj_list < "$subj_file"
 
-mkdir -p $odir
+mkdir -p "$odir"
 
-for contrast in ${contrasts[@]}; do
+for contrast in "${contrasts[@]}"; do
 	bn=${contrast##*/}
 	if [[ -n $measure_cov ]]; then
-		perl -lpe 's/\s*$/ 0/' $contrast > $odir/$bn
+        # add a column of 0 in each contrast file
+		perl -lpe 's/\s*$/ 0/' "$contrast" > "$odir"/"$bn"
 	else
-		cp $contrast $odir/$bn
+		cp "$contrast" "$odir"/"$bn"
 	fi
 done
 
 if [[ -n $measure_cov ]]; then
-	perl -lpe 's/\S+/0/g; s/\s*$/ 1/; exit if $.>1' $contrasts > $odir/contrast_$measure_cov
-	contrasts+=($odir/contrast_$measure_cov)
+    # create a new contrast file with all 0 except the last column
+	perl -lpe 's/\S+/0/g; s/\s*$/ 1/; exit if $.>1' "${contrasts[0]}" > "$odir"/contrast_$measure_cov
+	contrasts+=("$odir"/contrast_"$measure_cov")
 fi
 
-for measure in ${measures[@]}; do
-    for width in ${widths[@]}; do
+for measure in "${measures[@]}"; do
+    for width in "${widths[@]}"; do
         for hemi in lh rh; do
-            model_name=`basename ${matrix%.mat}`
+            model_name=$(basename "${matrix%.mat}")
             model_name=${model_name#matrix_}
             outname=$hemi.${measure%.mgh}.fwhm$width.$model_name
             glmdir=$odir/$outname
-            mkdir -p $glmdir
-            file_list=`printf $SUBJECTS_DIR"/%s/surf/$hemi.$measure.fwhm$width.fsaverage.mgh\n" $subj_list`
+            mkdir -p "$glmdir"
+            file_list=("${subj_list[@]/#/$SUBJECTS_DIR/}")
+            file_list=("${file_list[@]/%//surf/$hemi.$measure.fwhm$width.fsaverage.mgh}")
             y_file=$glmdir/$outname.mgh
-            mri_concat $file_list --o $y_file
+            mri_concat "${file_list[@]}" --o "$y_file"
             if [[ -n $measure_cov ]]; then
-                file_list2=`printf $SUBJECTS_DIR"/%s/surf/$hemi.$measure_cov.fwhm$width.fsaverage.mgh\n" $subj_list`
+                file_list2=("${subj_list[@]/#/$SUBJECTS_DIR/}")
+                file_list2=("${file_list[@]/%//surf/$hemi.$measure_cov.fwhm$width.fsaverage.mgh}")
                 cov_file=$glmdir/$hemi.$measure_cov.fwhm$width.$model_name.mgh
-                mri_concat $file_list2 --o $cov_file
+                mri_concat "${file_list2[@]}" --o "$cov_file"
                 pvr_arg="--pvr $cov_file"
             else
                 pvr_arg=
             fi
 
+            unset c_arg
+            for (( i=0; i<${#contrasts[*]}; ++i )); do c_arg+=(--C "${contrasts[$i]/*\/$odir/}"); done
+
             submit 5G mri_glmfit --surf fsaverage $hemi \
-                                 --X $matrix \
+                                 --X "$matrix" \
                                  $pvr_arg \
-                                 ${contrasts[@]/*\//--C $odir\/} \
-                                 --label $SUBJECTS_DIR/fsaverage/label/$hemi.aparc.label \
-                                 --y $y_file \
+                                 "${c_arg[@]}" \
+                                 --label "$SUBJECTS_DIR/fsaverage/label/$hemi.aparc.label" \
+                                 --y "$y_file" \
                                  --no-prune \
-                                 --glmdir $glmdir
+                                 --glmdir "$glmdir"
         done
     done
 done

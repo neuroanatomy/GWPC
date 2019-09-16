@@ -1,0 +1,382 @@
+diff -ru surfstat_orig/stat_threshold.m surfstat/stat_threshold.m
+--- surfstat_orig/stat_threshold.m	2008-04-03 22:50:54.000000000 +0200
++++ surfstat/stat_threshold.m	2019-01-10 12:43:46.021891596 +0100
+@@ -1,7 +1,7 @@
+ function [ peak_threshold, extent_threshold, ...
+     peak_threshold_1, extent_threshold_1, t, rho ] = ...
+    stat_threshold( search_volume, num_voxels, fwhm, df, p_val_peak, ...
+-   cluster_threshold, p_val_extent, nconj, nvar, EC_file, expr, nprint );
++   cluster_threshold, p_val_extent, nconj, nvar, EC_file, expr, nprint )
+ 
+ %Thresholds and P-values of peaks and clusters of random fields in any D.
+ %
+@@ -296,7 +296,7 @@
+ if isempty(nprint);  nprint=5;  end
+ 
+ if size(fwhm,1)==1; fwhm(2,:)=fwhm; end
+-if size(fwhm,2)==1; scale=1; else scale=fwhm(1,2)/fwhm(1,1); fwhm=fwhm(:,1); end;
++if size(fwhm,2)==1; scale=1; else scale=fwhm(1,2)/fwhm(1,1); fwhm=fwhm(:,1); end
+ isscale=(scale>1); 
+ 
+ if length(num_voxels)==1; num_voxels(2,1)=1; end
+@@ -345,7 +345,7 @@
+ 
+ if length(nvar)==1; nvar(2,1)=df1; end
+ 
+-if isscale & (D(2)>1 | nvar(1,1)>1 | df2<Inf)
++if isscale && (D(2)>1 || nvar(1,1)>1 || df2<Inf)
+    D
+    nvar
+    df2
+@@ -549,7 +549,7 @@
+    end
+ end
+ 
+-if all(fwhm<=0) | any(num_voxels<0)
++if all(fwhm<=0) || any(num_voxels<0)
+    peak_threshold_1=p_val_peak+NaN;
+    extent_threshold=p_val_extent+NaN;
+    extent_threshold_1=extent_threshold;
+@@ -607,7 +607,7 @@
+ EL=invol(1,D(1)+1)*invol(2,D(2)+1)*rhoD;
+ cons=gamma(d/2+1)*(4*log(2))^(d/2)/fwhm(1)^D(1)/fwhm(2)^D(2)*rhoD/p;
+ 
+-if df2==Inf & dfw1(1)==Inf & dfw1(2)==Inf
++if df2==Inf && dfw1(1)==Inf && dfw1(2)==Inf
+    if p_val_extent(1) <= tlim 
+       pS=-log(1-p_val_extent)/EL;
+       extent_threshold=(-log(pS)).^(d/2)/cons;
+@@ -664,17 +664,17 @@
+    aav=[];
+    if df2<Inf
+       nuv=df2+2-(1:d);
+-      aav=[repmat(-1/2,1,d)]; 
++      aav=repmat(-1/2,1,d); 
+       for k=1:2
+-          if D(k)>0;
++          if D(k)>0
+               nuv=[df1+df2-D(k) nuv];
+               aav=[D(k)/2 aav];
+-          end;
+-      end;
++          end
++      end
+    end
+    
+    for k=1:2
+-       if dfw1(k)<Inf & D(k)>0
++       if dfw1(k)<Inf && D(k)>0
+            if dfw1(k)>df_limit
+                nuv=[nuv dfw1(k)-dfw1(k)/dfw2(k)-(0:(D(k)-1))];
+            else
+@@ -744,7 +744,7 @@
+    
+ return
+ 
+-function x=gammalni(n);
++function x=gammalni(n)
+ i=find(n>=0);
+ x=Inf+n;
+ if ~isempty(i)
+@@ -752,7 +752,7 @@
+ end
+ return
+ 
+-function iy=minterp1(x,y,ix);
++function iy=minterp1(x,y,ix)
+ % interpolates only the monotonically increasing values of x at ix
+ n=length(x);
+ mx=x(1);
+diff -ru surfstat_orig/SurfStatEdg.m surfstat/SurfStatEdg.m
+--- surfstat_orig/SurfStatEdg.m	2008-07-22 06:36:30.000000000 +0200
++++ surfstat/SurfStatEdg.m	2019-01-10 12:42:54.952545128 +0100
+@@ -1,4 +1,4 @@
+-function edg = SurfStatEdge( surf )
++function edg = SurfStatEdg( surf )
+ 
+ %Finds edges of a triangular mesh or a lattice.
+ %
+diff -ru surfstat_orig/SurfStatLinMod.m surfstat/SurfStatLinMod.m
+--- surfstat_orig/SurfStatLinMod.m	2008-07-23 08:17:50.000000000 +0200
++++ surfstat/SurfStatLinMod.m	2019-01-03 18:04:22.885587366 +0100
+@@ -1,4 +1,4 @@
+-function slm = SurfStatLinMod( Y, M, surf, niter, thetalim, drlim );
++function slm = SurfStatLinMod( Y, M, surf, niter, thetalim, drlim )
+ 
+ %Fits linear mixed effects models to surface data and estimates resels.
+ %
+@@ -36,10 +36,10 @@
+ % slm.lat  = surf.lat.
+ 
+ maxchunk=2^20;
+-if nargin<4 | isempty(niter)
++if nargin<4 || isempty(niter)
+     niter=1;
+ end
+-if nargin<5 | isempty(thetalim)
++if nargin<5 || isempty(thetalim)
+     thetalim=0.01;
+ end
+ if nargin<6 
+@@ -57,8 +57,8 @@
+     else
+         s=s([3 1 2]);
+     end
+-    [PATHSTR,NAME,EXT]=fileparts(Ym.Filename);
+-    filenameResid=fullfile(PATHSTR,['Resid.mmm']);
++    [PATHSTR,~,~]=fileparts(Ym.Filename);
++    filenameResid=fullfile(PATHSTR, 'Resid.mmm');
+     copyfile(Ym.Filename,filenameResid);
+     YmResid=memmapfile(filenameResid,'Format',{'single' s 'Resid'},'Writable',true);
+     isnum=false;
+@@ -73,13 +73,13 @@
+ 
+ if isa(M,'random')
+     [slm.X,V]=double(M);
+-    [n2 q]=size(V);
++    [~, q]=size(V);
+     II=reshape(eye(n),n^2,1);
+     r=II-V*(pinv(V)*II);
+     if mean(r.^2)>eps
+         warning('Did you forget an error term, I? :-)');
+     end
+-    if q>1 | ((q==1) & sum(abs(II-V))>0)
++    if q>1 || ((q==1) && sum(abs(II-V))>0)
+         slm.V=reshape(V,[n n q]);
+     end
+     clear V II r;
+@@ -88,9 +88,9 @@
+     if isa(M,'term')
+         slm.X=double(M);
+     else
+-        if prod(size(M))>1
+-            warning('If you don''t convert vectors to terms you can get unexpected results :-(')
+-        end
++%         if prod(size(M))>1
++%             warning('If you don''t convert vectors to terms you can get unexpected results :-(')
++%         end
+         slm.X=M;
+     end
+     if size(slm.X,1)==1
+@@ -122,7 +122,7 @@
+     n10=floor(n/10);
+ end
+ for ic=1:nc
+-    if ~isnum & rem(ic,n10)==0 
++    if ~isnum && rem(ic,n10)==0 
+         fprintf(1,'%s',[num2str(round(100*(1-ic/nc))) ' ']);
+     end
+     v1=1+(ic-1)*chunk;
+@@ -157,7 +157,7 @@
+             if ic==1
+                 q1=q-1;
+                 for j=1:q
+-                    slm.V(:,:,j)=slm.V(:,:,j)/mean(diag(slm.V(:,:,j)));;
++                    slm.V(:,:,j)=slm.V(:,:,j)/mean(diag(slm.V(:,:,j)));
+                 end
+                 slm.r=zeros(q1,v);
+                 slm.dr=zeros(q1,nc);
+@@ -196,7 +196,7 @@
+             %% Exrtra Fisher scoring iterations
+             for iter=1:niter
+                 irs=round(r.*repmat(1./dr,1,vc));
+-                [ur,ir,jr]=unique(irs','rows');
++                [ur,~,jr]=unique(irs','rows');
+                 nr=size(ur,1);
+                 for ir=1:nr
+                     iv=(jr==ir);
+@@ -230,7 +230,7 @@
+ 
+             %% finish Fisher scoring
+             irs=round(r.*repmat(1./dr,1,vc));
+-            [ur,ir,jr]=unique(irs','rows');
++            [ur,~,jr]=unique(irs','rows');
+             nr=size(ur,1);
+             for ir=1:nr
+                 iv=(jr==ir);
+@@ -254,7 +254,6 @@
+         %% multivariate
+         if q>1
+             error('Multivariate mixed effects models not yet implemented :-(');
+-            return
+         end
+ 
+         if ~isfield(slm,'V')
+@@ -297,7 +296,7 @@
+ end
+ 
+ %% resels
+-if nargin<3 | isempty(surf)
++if nargin<3 || isempty(surf)
+     return
+ end
+ 
+@@ -324,7 +323,7 @@
+     normr=sqrt(slm.SSE(jj,:));
+     s=0;
+     for i=1:n
+-        if ~isnum & rem((j-1)*n+i,n10)==0
++        if ~isnum && rem((j-1)*n+i,n10)==0
+             fprintf(1,'%s',[num2str(round(100*(1-((j-1)*n+i)/(n*k)))) ' ']);
+         end
+         if isnum
+diff -ru surfstat_orig/SurfStatPeakClus.m surfstat/SurfStatPeakClus.m
+--- surfstat_orig/SurfStatPeakClus.m	2008-06-25 19:08:22.000000000 +0200
++++ surfstat/SurfStatPeakClus.m	2019-01-11 14:53:28.995781303 +0100
+@@ -1,5 +1,5 @@
+ function [ peak, clus, clusid ] = SurfStatPeakClus( slm, mask, thresh, ...
+-    reselspvert, edg );
++    reselspvert, edg )
+ 
+ %Finds peaks (local maxima) and clusters for surface data.
+ % 
+@@ -43,7 +43,7 @@
+ islm(edg(t1<t2,1))=0;
+ islm(edg(t2<t1,2))=0;
+ lmvox=find(islm);
+-lmt=slm.t(1,lmvox);
++%lmt=slm.t(1,lmvox);
+ 
+ excurset=(slm.t(1,:)>=thresh);
+ n=sum(excurset);
+@@ -63,19 +63,23 @@
+ for el=1:size(edg,1)
+     j=edg(el,1);
+     k=edg(el,2);
+-    while nf(j)~=j j=nf(j); end
+-    while nf(k)~=k k=nf(k); end
+-    if j~=k nf(j)=k; end
++    while nf(j)~=j; j=nf(j); end
++    while nf(k)~=k; k=nf(k); end
++    if j~=k; nf(j)=k; end
+ end
+ for j=1:n
+-    while nf(j)~=nf(nf(j)) nf(j)=nf(nf(j)); end
++    while nf(j)~=nf(nf(j)); nf(j)=nf(nf(j)); end
+ end
+ 
+ % find the unique cluster id's corresponding to the local maxima:
+ vox=find(excurset);
+ ivox=find(ismember(vox,lmvox));
+ clmid=nf(ivox);
+-[uclmid,iclmid,jclmid]=unique(clmid);
++[~,~,jclmid]=unique(clmid);
++
++if size(jclmid, 1) > 1
++    jclmid = jclmid';
++end
+ 
+ % find their volumes:
+ ucid=unique(nf);
+@@ -91,10 +95,10 @@
+ nf1=interp1([0 ucid],0:nclus,nf,'nearest');
+ 
+ % if k>1, find volume of cluster in added sphere:
+-if ~isfield(slm,'k') | slm.k==1
++if ~isfield(slm,'k') || slm.k==1
+     ucrsl=accumarray(nf1',reselsvox)';
+ end
+-if isfield(slm,'k') & slm.k==2
++if isfield(slm,'k') && slm.k==2
+     if l==1
+         ndf=length(slm.df);
+         r=2*acos((thresh./slm.t(1,vox)).^(1/ndf));
+@@ -104,7 +108,7 @@
+     end
+     ucrsl=accumarray(nf1',r'.*reselsvox')';
+ end
+-if isfield(slm,'k') & slm.k==3
++if isfield(slm,'k') && slm.k==3
+     if l==1
+         ndf=length(slm.df);
+         r=2*pi*(1-(thresh./slm.t(1,vox)).^(1/ndf));
+@@ -122,17 +126,17 @@
+ end
+ 
+ % and their ranks (in ascending order):
+-[sortucrsl,iucrsl]=sort(ucrsl);
+-rankrsl=zeros(1,nclus);
++[~,iucrsl]=sort(ucrsl);
++rankrsl=zeros(nclus,1);
+ rankrsl(iucrsl)=nclus:-1:1;
+ 
+ % add these to lm as extra columns:
+ lmid=lmvox(ismember(lmvox,vox));
+-lm=flipud(sortrows([slm.t(1,lmid)' lmid' rankrsl(jclmid)'],1));
+-cl=sortrows([rankrsl' ucvol' ucrsl'],1);
++lm=flipud(sortrows([slm.t(1,lmid)' lmid' rankrsl(jclmid')],1));
++cl=sortrows([rankrsl ucvol' ucrsl'],1);
+ 
+ clusid=zeros(1,v);
+-clusid(vox)=interp1([0 ucid],[0 rankrsl],nf,'nearest');
++clusid(vox)=interp1([0 ucid],[0 rankrsl'],nf,'nearest');
+ 
+ peak.t=lm(:,1);
+ peak.vertid=lm(:,2);
+diff -ru surfstat_orig/SurfStatP.m surfstat/SurfStatP.m
+--- surfstat_orig/SurfStatP.m	2008-09-06 15:30:36.000000000 +0200
++++ surfstat/SurfStatP.m	2019-01-10 12:43:04.158368474 +0100
+@@ -39,9 +39,9 @@
+ % & Evans, A.C. (1999). Detecting changes in nonisotropic images.
+ % Human Brain Mapping, 8:98-101.
+ 
+-[l,v]=size(slm.t);
+-if nargin<2 | isempty(mask)
+-    mask=logical(ones(1,v));
++[~,v]=size(slm.t);
++if nargin<2 || isempty(mask)
++    mask=true(1,v);
+ end
+ if nargin<3
+     clusthresh=0.001;
+@@ -90,7 +90,7 @@
+         sphere(j+1)=exp((j+1)*log(2)+(j/2)*log(pi)+gammaln((slm.k+1)/2)- ...
+             gammaln(j+1)-gammaln((slm.k+1-j)/2));
+         sphere=sphere.*(4*log(2)).^(-(0:(slm.k-1))/2)/ndf;
+-        [pp,clpval]=stat_threshold(conv(resels,sphere),Inf,1,df,...
++        [~,clpval]=stat_threshold(conv(resels,sphere),Inf,1,df,...
+             [],thresh,[10; clus.resels],[],[],[],[],0);
+     end
+     clus.P=clpval(2:length(clpval));
+diff -ru surfstat_orig/SurfStatReadSurf.m surfstat/SurfStatReadSurf.m
+--- surfstat_orig/SurfStatReadSurf.m	2008-09-26 12:51:56.000000000 +0200
++++ surfstat/SurfStatReadSurf.m	2019-01-10 12:43:30.737987652 +0100
+@@ -42,15 +42,15 @@
+ end
+ maxmem=maxmem*2^20;
+ 
+-if nargin<2 | isempty(ab)
++if nargin<2 || isempty(ab)
+     ab='a';
+ end
+-if nargin<3 | isempty(numfields)
++if nargin<3 || isempty(numfields)
+     numfields=2;
+ end
+ numfields1=(numfields-1)*3+1;
+ 
+-if isstr(filenames)
++if ischar(filenames)
+     sf=filenames;
+     filenames=cell(1,1);
+     filenames(1)={sf};
+@@ -84,8 +84,8 @@
+         surf.coord=zeros(n,v,3,'single');
+         surf.coord(1,:,:)=single(c)';
+     else
+-        if nargin<4 | isempty(dirname)
+-            [PATHSTR,NAME,EXT]=fileparts(filenames{1,1});
++        if nargin<4 || isempty(dirname)
++            [PATHSTR,~,~]=fileparts(filenames{1,1});
+             dirname=fullfile(PATHSTR,'SurfStat');
+         end
+         if ~exist(dirname,'dir')
+@@ -97,7 +97,7 @@
+                     MESSAGE]);
+             end
+         end
+-        [PATHSTR,NAME,EXT]=fileparts(tempname);
++        [~,NAME,~]=fileparts(tempname);
+         Filename=fullfile(dirname,NAME);
+         fid=fopen(Filename,'wb');
+         fwrite(fid,c','single');
