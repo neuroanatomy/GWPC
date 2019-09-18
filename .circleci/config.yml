@@ -1,0 +1,58 @@
+# CircleCI 2.0 configuration file
+version: 2
+jobs:
+  build:
+    docker:
+      - image: freesurfer/freesurfer:6.0
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+
+      - run:
+        name: install surfstat
+        command: |
+          wget http://www.math.mcgill.ca/keith/surfstat/surfstat.zip
+          mkdir -p bin/surfstat
+          unzip surfstat.zip -d bin/surfstat
+          patch -p0 -d bin -i ../src/surfstat.diff
+
+      - run:
+        name: install RFT_FDR
+        command: |
+          wget https://www.nitrc.org/frs/download.php/3071/RFT_FDR.tar.gz
+          tar xf RFT_FDR.tar.gz -C bin
+
+      - run:
+        name: install octave
+        command: |
+          apt install octave
+          echo "addpath('$PWD/bin/modules/surfstat');" > ~/.octaverc
+          echo "addpath('$PWD/bin/modules/RFT_FDR');" >> ~/.octaverc
+          echo "addpath([getenv('FREESURFER_HOME') '/matlab'])" >> ~/.octaverc
+      
+      - run:
+        name: install R
+        commad: |
+          apt install r-base
+          R -e 'install.packages(c("plyr", "R.matlab"), repos="https://cloud.r-project.org")'
+
+      - run:
+        name: get freesurfer derived files
+        command: |
+          wget abide.w-g.pct.30.zip
+          unzip abide.w-g.pct.30.zip
+          ln -s $SUBJECTS_DIR/fsaverage data/derived/fs-6.0.0
+
+      - run:
+        name: run preprocessing of tables
+        command: |
+          Rscript src/preprocessing/fichier_commun.R 
+
+      - run:
+        name: run glm scripts
+        command: |
+          bash src/freesurfer/run_glm.sh .circleci/run_glm_config_NYU.sh
+          bash src/freesurfer/correct_glm.sh .circleci/correct_glm_config_NYU.sh
+          bash src/freesurfer/plot_figures.sh .circleci/plot_figures_config_NYU.sh
