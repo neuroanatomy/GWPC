@@ -3,56 +3,104 @@ version: 2
 jobs:
   build:
     docker:
-      - image: freesurfer/freesurfer:6.0
+      - image: circleci/buildpack-deps:xenial-browsers
 
     working_directory: ~/repo
 
     steps:
+
+      - run:
+          name: install required standard tools
+          command: |
+            sudo apt update
+            sudo apt install -y tcsh libpng12-0 libjpeg62
+
+      - run:
+          name: install freesurfer
+          command: |
+            wget -qO- https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/6.0.1/freesurfer-Linux-centos6_x86_64-stable-pub-v6.0.1.tar.gz | sudo tar xzv --no-same-owner -C /opt \
+              --exclude='freesurfer/trctrain' \
+              --exclude='freesurfer/subjects/fsaverage_sym' \
+              --exclude='freesurfer/subjects/fsaverage3' \
+              --exclude='freesurfer/subjects/fsaverage4' \
+              --exclude='freesurfer/subjects/fsaverage5' \
+              --exclude='freesurfer/subjects/fsaverage6' \
+              --exclude='freesurfer/subjects/cvs_avg35' \
+              --exclude='freesurfer/subjects/cvs_avg35_inMNI152' \
+              --exclude='freesurfer/subjects/bert' \
+              --exclude='freesurfer/subjects/V1_average' \
+              --exclude='freesurfer/lib/cuda'
+            echo 'export FREESURFER_HOME=/opt/freesurfer' >> $BASH_ENV
+            echo 'source $FREESURFER_HOME/SetUpFreeSurfer.sh' >> $BASH_ENV
+ 
       - checkout
+ 
+      - run:
+          name: install surfstat
+          command: |
+            wget http://www.math.mcgill.ca/keith/surfstat/surfstat.zip
+            mkdir -p bin/modules/surfstat
+            unzip surfstat.zip -d bin/modules/surfstat
+            patch -p0 -d bin/modules -i ../../src/freesurfer/surfstat.diff
+ 
+      - run:
+          name: install RFT_FDR
+          command: |
+            wget https://www.nitrc.org/frs/download.php/3071/RFT_FDR.tar.gz
+            tar xf RFT_FDR.tar.gz -C bin/modules
+ 
+      - run:
+          name: install conda
+          command: |
+            wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+            bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda
+            echo 'export PATH="~/miniconda/bin:$PATH"' >> $BASH_ENV
+ 
+      - run:
+          name: install conda dependencies
+          command: |
+            conda config --add channels r
+            conda config --add channels conda-forge
+            conda config --add channels defaults
+            conda install r-base r-plyr r-r.matlab
+ 
+      - run:
+          name: install octave
+          command: |
+            sudo apt install -y octave
+            echo "addpath('$PWD/bin/modules/surfstat');" > ~/.octaverc
+            echo "addpath('$PWD/bin/modules/RFT_FDR');" >> ~/.octaverc
+            echo "addpath([getenv('FREESURFER_HOME') '/matlab'])" >> ~/.octaverc
 
       - run:
-        name: install surfstat
-        command: |
-          wget http://www.math.mcgill.ca/keith/surfstat/surfstat.zip
-          mkdir -p bin/surfstat
-          unzip surfstat.zip -d bin/surfstat
-          patch -p0 -d bin -i ../src/surfstat.diff
+          name: get freesurfer derived files
+          command: |
+            curl -OJ https://zenodo.org/record/3416448/files/abide.w-g.pct.30.zip
+            unzip -q abide.w-g.pct.30.zip
 
       - run:
-        name: install RFT_FDR
-        command: |
-          wget https://www.nitrc.org/frs/download.php/3071/RFT_FDR.tar.gz
-          tar xf RFT_FDR.tar.gz -C bin
+          name: configure freesurfer
+          command: |
+            ln -s $SUBJECTS_DIR/fsaverage data/derived/fs-6.0.0
+            echo "$LICENSE" | base64 --decode | sudo tee "$FREESURFER_HOME/license.txt" > /dev/null
+            sudo patch -p0 -d "$FREESURFER_HOME/matlab" -i $PWD/.circleci/save_mgh.diff
+            # configure the background in white
+            freeview -quit
+            perl -i -lpe 's/^(General=\@Variant\((?:\\[^\\]+){281})(?:\\[^\\]+){6}/$1\\xff\\xff\\xff\\xff\\xff\\xff/' ~/.config/Massachusetts\ General\ Hospital/freeview.conf
 
       - run:
-        name: install octave
-        command: |
-          apt install octave
-          echo "addpath('$PWD/bin/modules/surfstat');" > ~/.octaverc
-          echo "addpath('$PWD/bin/modules/RFT_FDR');" >> ~/.octaverc
-          echo "addpath([getenv('FREESURFER_HOME') '/matlab'])" >> ~/.octaverc
-      
-      - run:
-        name: install R
-        commad: |
-          apt install r-base
-          R -e 'install.packages(c("plyr", "R.matlab"), repos="https://cloud.r-project.org")'
+          name: run preprocessing of tables
+          command: |
+            source activate
+            Rscript src/preprocessing/fichier_commun.R 
 
       - run:
-        name: get freesurfer derived files
-        command: |
-          wget abide.w-g.pct.30.zip
-          unzip abide.w-g.pct.30.zip
-          ln -s $SUBJECTS_DIR/fsaverage data/derived/fs-6.0.0
+          name: run glm scripts
+          command: |
+            source activate
+            bash src/freesurfer/run_glm.sh .circleci/run_glm_config_NYU.sh
+            bash src/freesurfer/correct_glm.sh .circleci/correct_glm_config_NYU.sh
+            bash src/freesurfer/plot_figures.sh .circleci/plot_figures_config_NYU.sh
 
-      - run:
-        name: run preprocessing of tables
-        command: |
-          Rscript src/preprocessing/fichier_commun.R 
-
-      - run:
-        name: run glm scripts
-        command: |
-          bash src/freesurfer/run_glm.sh .circleci/run_glm_config_NYU.sh
-          bash src/freesurfer/correct_glm.sh .circleci/correct_glm_config_NYU.sh
-          bash src/freesurfer/plot_figures.sh .circleci/plot_figures_config_NYU.sh
+      - store_artifacts:
+          path: data/derived/fs-6.0.0/glm_NYU/images/w-g.pct.30.fwhm10.mod/contrast_ASD

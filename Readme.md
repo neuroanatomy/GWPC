@@ -1,3 +1,4 @@
+[![CircleCI](https://circleci.com/gh/neuroanatomy/GWPC.svg?style=svg)](https://circleci.com/gh/neuroanatomy/GWPC)
 # GWPC
 
 This repository contains the code used for the analyses described in our manuscript "Increased contrast of the grey-white matter boundary in the motor, visual and auditory areas in Autism Spectrum Disorders" (Preprint: https://doi.org10.1101/750117).

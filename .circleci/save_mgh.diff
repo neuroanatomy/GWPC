@@ -1,0 +1,11 @@
+--- save_mgh.m.prev	2019-09-19 16:45:55.000000000 +0200
++++ save_mgh.m	2019-09-19 17:00:31.000000000 +0200
+@@ -80,7 +80,7 @@
+ 
+ %%?????????????%%%
+ fwrite(fid, 1, 'int') ;          % dof (not used)
+-dof = fread(fid, 1, 'int') ; 
++% dof = fread(fid, 1, 'int') ; 
+ 
+ UNUSED_SPACE_SIZE= 256;
+ USED_SPACE_SIZE = (3*4+4*3*4);  % space for ras transform
