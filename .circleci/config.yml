@@ -9,6 +9,8 @@ jobs:
 
     steps:
 
+      - checkout
+
       - run:
           name: install required standard tools
           command: |
@@ -32,8 +34,6 @@ jobs:
               --exclude='freesurfer/lib/cuda'
             echo 'export FREESURFER_HOME=/opt/freesurfer' >> $BASH_ENV
             echo 'source $FREESURFER_HOME/SetUpFreeSurfer.sh' >> $BASH_ENV
- 
-      - checkout
  
       - run:
           name: install surfstat
@@ -71,6 +71,8 @@ jobs:
             echo "addpath('$PWD/bin/modules/surfstat');" > ~/.octaverc
             echo "addpath('$PWD/bin/modules/RFT_FDR');" >> ~/.octaverc
             echo "addpath([getenv('FREESURFER_HOME') '/matlab'])" >> ~/.octaverc
+            # fix permission issue after octave installation
+            sudo chown -R $(id -u -n) ~/.config
 
       - run:
           name: get freesurfer derived files
@@ -81,18 +83,18 @@ jobs:
       - run:
           name: configure freesurfer
           command: |
-            ln -s $SUBJECTS_DIR/fsaverage data/derived/fs-6.0.0
             echo "$LICENSE" | base64 --decode | sudo tee "$FREESURFER_HOME/license.txt" > /dev/null
+            ln -s $SUBJECTS_DIR/fsaverage data/derived/fs-6.0.0
             sudo patch -p0 -d "$FREESURFER_HOME/matlab" -i $PWD/.circleci/save_mgh.diff
             # configure the background in white
-            freeview -quit
-            perl -i -lpe 's/^(General=\@Variant\((?:\\[^\\]+){281})(?:\\[^\\]+){6}/$1\\xff\\xff\\xff\\xff\\xff\\xff/' ~/.config/Massachusetts\ General\ Hospital/freeview.conf
+            mkdir -p ~/.config/Massachusetts\ General\ Hospital
+            cp .circleci/freeview.conf ~/.config/Massachusetts\ General\ Hospital/freeview.conf
 
       - run:
           name: run preprocessing of tables
           command: |
             source activate
-            Rscript src/preprocessing/fichier_commun.R 
+            Rscript src/preprocessing/fichier_commun.R
 
       - run:
           name: run glm scripts
