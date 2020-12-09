@@ -18,6 +18,9 @@ surfaces=("${surfaces[@]#$moddir/?h.}")
 # remove duplicates
 readarray -t surfaces < <( printf '%q\n' "${surfaces[@]}" | sort -u )
 
+# freeview () { xvfb-run -e /dev/stdout --auto-servernum -s "-screen 0 1920x1080x24" freeview -verbose; }
+type freeview
+
 for surf in "${surfaces[@]}"; do
 	echo "$surf"
 	odir=$moddir/images/${surf%.mgh}
