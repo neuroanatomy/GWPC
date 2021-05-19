@@ -25,8 +25,9 @@ raw.dir <- file.path(data.dir, "raw")
 derived.dir <- file.path(data.dir, "derived")
 
 fs.dir <- file.path(derived.dir, "fs-6.0.0")
-glm.dir <- file.path(fs.dir, "glm_mod7")
-pheno.dir <- file.path(derived.dir, "glm-freesurfer", "mod7")
+glm.dir <- file.path(fs.dir, "glm_nonNYU")
+pheno.dir <- file.path(derived.dir, "glm-freesurfer", "mod_nonNYU")
+measure <- "fwhm2.bsc.fwhm10"
 
 setwd(script.dir)
 
@@ -35,7 +36,7 @@ source("load.mgh.R")
 # 1. Read data
 #--------------
 
-epsq <- do.call(rbind, lapply(c("lh", "rh"), function(hemi) {
+no0 <- sapply(c("lh", "rh"), function(hemi) {
   # get labels
   f <- file(file.path(fs.dir, "fsaverage", "label", paste0(hemi, ".aparc.annot")), "rb")
   n <- readBin(f, integer(), endian="big")
@@ -44,11 +45,11 @@ epsq <- do.call(rbind, lapply(c("lh", "rh"), function(hemi) {
   v <- d[seq(1, n*2, 2)]
   l <- d[seq(2, n*2, 2)]
   # remove label 0
-  no0 <- l>0
-  v <- v[no0]
-  l <- l[no0]
-  
-  mod.dir <- file.path(glm.dir, paste0(hemi, ".w-g.pct.30.fwhm10.mod"))
+  l>0
+}, simplify=F)
+
+epsq <- do.call(rbind, lapply(c("lh", "rh"), function(hemi) {
+  mod.dir <- file.path(glm.dir, paste0(hemi, ".", measure, ".mod"))
   contrast_dirs <- dir(mod.dir, "contrast_*")
   contrasts <- sub("contrast_*", "", contrast_dirs)
   epsq <- sapply(contrasts, function(x) {
@@ -58,7 +59,7 @@ epsq <- do.call(rbind, lapply(c("lh", "rh"), function(hemi) {
   })
   
   # keep only vertices with label
-  epsq <- epsq[no0,]
+  epsq <- epsq[no0[[hemi]],]
   
   epsq
 }))
@@ -66,3 +67,24 @@ epsq <- do.call(rbind, lapply(c("lh", "rh"), function(hemi) {
 nv <- nrow(epsq)
 
 apply(epsq, 2, summary)
+apply(epsq, 2, describe.numeric)
+
+pepsq <- do.call(rbind, lapply(c("lh", "rh"), function(hemi) {
+  mod.dir <- file.path(glm.dir, paste0(hemi, ".", measure, ".mod"))
+  contrast_dirs <- dir(mod.dir, "contrast_*")
+  contrasts <- sub("contrast_*", "", contrast_dirs)
+  pepsq <- sapply(contrasts, function(x) {
+    # load epsq values
+    tmp <- load.mgh(file.path(mod.dir, paste0("contrast_", x), "pepsq.mgh"))
+    tmp$x
+  })
+  
+  # keep only vertices with label
+  pepsq <- pepsq[no0[[hemi]],]
+  
+  pepsq
+}))
+
+r2 <- 1 - epsq / pepsq + epsq
+apply(r2, 2, summary)
+apply(r2, 2, describe.numeric)

@@ -16,13 +16,15 @@ script.dir <- {
   } else getwd()
 }
 
-base.dir <- system(paste("cd", script.dir, "&& git rev-parse --show-toplevel"), intern=T)
+setwd(script.dir)
+base.dir <- system("git rev-parse --show-toplevel", intern=T)
+# base.dir <- system(paste("cd", script.dir, "&& git rev-parse --show-toplevel"), intern=T)
 data.dir <- file.path(base.dir, "data")
 raw.dir <- file.path(data.dir, "raw")
 derived.dir <- file.path(data.dir, "derived")
 
 # description de l'echantillon abide_final
-abide_final<-read.table(file.path(derived.dir, "abide_final.txt"), sep = '\t', check.names = FALSE, header = TRUE)
+abide_final<-read.table(file.path(derived.dir, "abide_final.txt"), sep = '\t', check.names = FALSE, header = TRUE, stringsAsFactors = TRUE)
 
 # on veut comme r??f??rence pour le diagnostic Control et pour le SEX Male :
 abide_final$DX_GROUP<- relevel(abide_final$DX_GROUP, ref="Control")
@@ -38,11 +40,11 @@ female<-subset(abide_final, SEX=="Female")
 
 
 #moyenne d'age des ASD : 17.04 ans (min : 5,22 ?? max : 62,00 ans), sd = 9,23, median : 14,20
-describe(ASD$AGE_AT_SCAN, xname="ASD$AGE_AT_SCAN")
+describe.numeric(ASD$AGE_AT_SCAN)
 summary(ASD[,"AGE_AT_SCAN"])
 
 #moyenne d'age des TC : 16,292 ans (min : 5,887 ?? max : 64,000 ans), sd = 8.72, mediane : 13,18 ans
-describe(TC$AGE_AT_SCAN, xname="TC$AGE_AT_SCAN")
+describe.numeric(TC$AGE_AT_SCAN)
 summary(TC[,"AGE_AT_SCAN"])
 
 #comparaison des ages entre TSA et TC avec t test : condition de validit?? ; n>30 ok et loi normale (pas tr??s loin, ok), la variance de la variable dans les deux groupes doit etre egale (ici : sd : 9,39 et 8.81 : ok)
@@ -52,7 +54,7 @@ t.test(abide_final$AGE_AT_SCAN~ abide_final$DX_GROUP, var.equal=F)
 # p-value = 0.1126, (95 percent confidence interval:  -0.175917  1.668859), donc pas de diff??rence significative d'age entre les groupes ASD et TC
 
 #moyenne des FIQ chez les TSA : 105,8 (41,0 ?? 149,0), sd=16,48, mediane : 106,0
-describe(ASD$FIQ_total, xname="ASD$FIQ_total")
+describe.numeric(ASD$FIQ_total)
 summary(ASD$FIQ_total)
 # combien de retard mental ? (soit FIQ< 70) : 7
 table(ASD$FIQ_total<70, useNA="always")
@@ -81,21 +83,21 @@ chisq.test(dx_sex_table)
 
 # chez les ASD moyenne, sd des scores ADI et ADOS :
 # ADI-R social : moyenne : 19,37 (min : 4,00, max : 30,00), sd: 5,59, mediane : 20,00, 209 NA
-describe(ASD$ADI_R_SOCIAL_TOTAL_A, xname="ASD$ADI_R_SOCIAL_TOTAL_A")
+describe.numeric(ASD$ADI_R_SOCIAL_TOTAL_A)
 summary(ASD$ADI_R_SOCIAL_TOTAL_A)
 
 # ADI-R communication, 208 NA
-describe(ASD$ADI_R_VERBAL_TOTAL_BV, xname="ASD$ADI_R_VERBAL_TOTAL_BV")
+describe.numeric(ASD$ADI_R_VERBAL_TOTAL_BV)
 summary(ASD$ADI_R_VERBAL_TOTAL_BV)
 # mean : 15,52 + ou - sd : 4,56 (min : 4,00, max : 26,00)
 
 # ADI-R repetitive behavior, 208 NA 
-describe(ASD$ADI_RRB_TOTAL_C, xname="ASD$ADI_RRB_TOTAL_C")
+describe.numeric(ASD$ADI_RRB_TOTAL_C)
 summary(ASD$ADI_RRB_TOTAL_C)
 # mean : 5,89 + ou - sd : 2,55 (min : 0,000, max : 13,000)
 
 # ADOS social + communication, 196 NA 
-describe(ASD$ADOS_TOTAL, xname="ASD$ADOS_TOTAL")
+describe.numeric(ASD$ADOS_TOTAL)
 summary(ASD$ADOS_TOTAL)
 # mean : 11,5 + ou - sd : 3,85 (min : 2,0, max : 23,0)
 

@@ -507,7 +507,7 @@ writeLines(subject_names6, con=file.path(mod6dir, "subject_names.txt"), sep="\n"
 writeLines(col_names6, con=file.path(mod6dir, "col_names.txt"), sep="\n")
 
 
-# modele avec les interactions variables-site
+# model with motion as covariate
 matrix.mod7 <- model.matrix(~DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total + SITE_ID + motion, data = abide_final)
 
 subject_names7 <- rownames(matrix.mod7)
@@ -525,3 +525,106 @@ contrast_Site <- t(sapply(grep("^SITE_", col_names7, value=T), function(x) as.nu
 write.table(contrast_Site, file.path(mod7dir, "contrast_Site"), row.names=F, col.names=F)
 writeLines(subject_names7, con=file.path(mod7dir, "subject_names.txt"), sep="\n")
 writeLines(col_names7, con=file.path(mod7dir, "col_names.txt"), sep="\n")
+
+# modele en enlevant NYU
+data_nonNYU <- subset(abide_final, abide_final$SITE_ID != "NYU")
+data_nonNYU$SITE_ID <- factor(data_nonNYU$SITE_ID)
+
+matrix.mod_nonNYU <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total, data = data_nonNYU)
+subject_names_nonNYU <- rownames(matrix.mod_nonNYU)
+col_names_nonNYU <- colnames(matrix.mod_nonNYU)
+mod_dir_nonNYU <- file.path(glmdir, "mod_nonNYU")
+dir.create(mod_dir_nonNYU, show=F, rec=T)
+writeMat(con=file.path(mod_dir_nonNYU, "matrix_mod.mat"),  X=matrix.mod_nonNYU)
+writeLines(as.character(as.numeric(col_names_nonNYU == "DX_GROUPASD")), con=file.path(mod_dir_nonNYU, "contrast_ASD"), sep=" ")
+writeLines(as.character(as.numeric(col_names_nonNYU == "SEXFemale")), con=file.path(mod_dir_nonNYU, "contrast_Female"), sep=" ")
+writeLines(as.character(as.numeric(col_names_nonNYU == "AGE_AT_SCAN")), con=file.path(mod_dir_nonNYU, "contrast_age"), sep=" ")
+writeLines(as.character(as.numeric(col_names_nonNYU == "FIQ_total")), con=file.path(mod_dir_nonNYU, "contrast_FIQ"), sep=" ")
+contrast_Site <- t(sapply(grep("^SITE_", col_names_nonNYU, value=T), function(x) as.numeric(colnames(matrix.mod_nonNYU) == x)))
+write.table(contrast_Site, file.path(mod_dir_nonNYU, "contrast_Site"), row.names=F, col.names=F)
+writeLines(subject_names_nonNYU, con=file.path(mod_dir_nonNYU, "subject_names.txt"), sep="\n")
+writeLines(col_names_nonNYU, con=file.path(mod_dir_nonNYU, "col_names.txt"), sep="\n")
+
+# modele avec effet de polynomial de l'age
+np <- 4
+matrix.mod8 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total, data = abide_final)
+
+subject_names8 <- rownames(matrix.mod8)
+col_names8 <- colnames(matrix.mod8)
+
+mod8dir <- file.path(glmdir, "mod8")
+dir.create(mod8dir, show=F, rec=T)
+writeMat(con=file.path(mod8dir, "matrix_mod.mat"),  X=matrix.mod8)
+writeLines(as.character(as.numeric(colnames(matrix.mod8) == "DX_GROUPASD")), con=file.path(mod8dir, "contrast_ASD"), sep=" ")
+writeLines(as.character(as.numeric(colnames(matrix.mod8) == "SEXFemale")), con=file.path(mod8dir, "contrast_Female"), sep=" ")
+for (i in 1:np) {
+	writeLines(as.character(as.numeric(grepl(paste0("AGE_AT_SCAN.*", i, "$"), colnames(matrix.mod8)))), con=file.path(mod8dir, paste0("contrast_age", i)), sep=" ")
+}
+writeLines(as.character(as.numeric(colnames(matrix.mod8) == "FIQ_total")), con=file.path(mod8dir, "contrast_FIQ"), sep=" ")
+contrast_Site <- t(sapply(grep("^SITE_", col_names8, value=T), function(x) as.numeric(colnames(matrix.mod8) == x)))
+write.table(contrast_Site, file.path(mod8dir, "contrast_Site"), row.names=F, col.names=F)
+writeLines(subject_names8, con=file.path(mod8dir, "subject_names.txt"), sep="\n")
+writeLines(col_names8, con=file.path(mod8dir, "col_names.txt"), sep="\n")
+
+write.model <- function(formula, data, mod_name) {
+    terms <- attr(terms(formula),"term.labels")
+    terms2 <- sub(".*\\((.*?)[),].*", "\\1", terms)
+    data2 <- na.omit(data[,terms2])
+    
+    for (term in terms2) {
+        if (class(data2[[term]]) == "factor")
+            data2[[term]] <- factor(data2[[term]])
+    }
+    
+    matrix.mod <- model.matrix(formula, data = data2)
+    subject_names <- rownames(matrix.mod)
+    col_names <- colnames(matrix.mod)
+    
+    mod_dir <- file.path(glmdir, mod_name)
+    dir.create(mod_dir, show=F, rec=T)
+    writeMat(con=file.path(mod_dir, "matrix_mod.mat"),  X=matrix.mod)
+    for (term in terms2) {
+        col <- grepl(term, col_names)
+        ncol <- sum(col)
+        if (ncol == 1) {
+            if (class(data2[[term]]) == "factor") {
+                contrast.names <- sub(term, "", col_names[col])
+            } else {
+                contrast.names <- col_names[col]
+            }
+            contrasts <- list(t(as.character(as.numeric(col))))
+        } else if (ncol > 1) {
+            if (class(data2[[term]]) == "factor") {
+                contrasts <- list(t(sapply(grep(term, col_names, value=T), function(x) as.numeric(col_names == x))))
+                contrast.names <- term
+            } else {
+                nums <- sub("^.*?(\\d+)$" ,"\\1", col_names[col])
+                contrasts <- lapply(nums, function(i) t(as.character(as.numeric(grepl(paste0(term, ".*", i, "$"), col_names)))))
+                contrast.names <- paste0(term, nums)
+            }
+        }
+        for (i in 1:length(contrasts)) {
+            write.table(contrasts[i], file.path(mod_dir, paste0("contrast_", contrast.names[i])), row.names=F, col.names=F, quote=F)
+        }
+    }
+    writeLines(subject_names, con=file.path(mod_dir, "subject_names.txt"), sep="\n")
+    writeLines(col_names, con=file.path(mod_dir, "col_names.txt"), sep="\n")
+}
+
+np <- 4
+
+# modele avec effet poly de l'age et motion
+write.model(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total + motion, abide_final, "mod2_full")
+
+# modele avec VINELAND_ABC_STANDARD
+write.model(~ VINELAND_ABC_STANDARD + SEX + poly(AGE_AT_SCAN, np) + FIQ_total + motion, data = abide_final, "mod_vineland")
+
+# modele avec ADI_R_SOCIAL_TOTAL_A
+write.model(~ ADI_R_SOCIAL_TOTAL_A + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total + motion, data = abide_final, "mod_adi")
+
+# modele avec ADOS_TOTAL
+write.model(~ ADOS_TOTAL + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total + motion, data = abide_final, "mod_ados")
+
+# modele avec SRS_RAW_TOTAL
+write.model(~ SRS_RAW_TOTAL + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total + motion, data = abide_final, "mod_srs")
+

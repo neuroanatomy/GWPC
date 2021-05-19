@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -lt 1 ]]; then
     echo "Usage:"
     echo "$0 config_file.sh"
     exit 1
 fi
 
 config=$1
+shift
 # shellcheck source=run_glm_config.sh
 source "$config"
 

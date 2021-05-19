@@ -15,17 +15,21 @@ function submit {
 #!/bin/bash
 set -e
 echo "$@"
-"$@"
+eval "$@"
 EOF
 }
 
 script_dir=$(cd "$(dirname "$0")" && pwd)
 project_dir=$(cd "$script_dir" && git rev-parse --show-toplevel)
 
+
+#mod_dir=$1
+mod_dir=$derived_dir/glm-freesurfer/mod2
+#site=${mod_dir##*mod_}
 derived_dir=$project_dir/data/derived
 fsdir=$derived_dir/fs-6.0.0
-odir=$fsdir/glm_mod7b
-mod_dir=$derived_dir/glm-freesurfer/mod7
+odir=$fsdir/glm_mod2
+#odir=$fsdir/glm_mod_${site}
 subj_file=$mod_dir/subject_names.txt
 matrix=$mod_dir/matrix_mod.mat
 contrasts=( "$mod_dir"/contrast_* )
@@ -33,9 +37,10 @@ contrasts=( "$mod_dir"/contrast_* )
 pcts=(.30)
 measures=( "${pcts[@]/#/w-g.pct}" )
 measures=( "${measures[@]/%/.mgh}" )
-#measures+=(thickness)
+measures+=(thickness)
 #measures+=(`printf "gm%s.mgh\n" "${pcts[@]}"`)
 #measures+=(wm_1mm.mgh)
+#measures=( "${measures[@]/%/.norm}" )
 #widths=(5 10)
 widths=(10)
 
