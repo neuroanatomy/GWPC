@@ -7,7 +7,7 @@ fsdir=$project_dir/data/derived/fs-6.0.0
 
 export SUBJECTS_DIR=$fsdir
 
-moddir=$fsdir/glm_mod2
+moddir=$fsdir/glm_nonNYU
 
 # image=contrast_age/cache.th20.abs.sig.gamma.mgh
 # image=contrast_age/cw_ef.mgh
@@ -58,8 +58,9 @@ glmdirpattern="*w-g*.fwhm10*"
 
 if command -v xvfb-run > /dev/null; then
 	freeview() {
-		xvfb-run --auto-servernum -s "-screen 0 1920x1080x24" $(which freeview) $@
+		xvfb-run --auto-servernum -s "-screen 0 1920x1080x24" "$(which freeview)" "$@"
 	}
+	export -f freeview
 fi
 
 export moddir
@@ -67,4 +68,3 @@ export image
 export threshold
 export surflabel
 export glmdirpattern
-export -f freeview

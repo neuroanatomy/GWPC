@@ -32,8 +32,8 @@ fsdir=$derived_dir/fs-6.0.0
 #moddirpattern=$fsdir/glm_*_thickness
 #moddirpattern=$fsdir/glm_@(mod8|non*)
 moddirpattern=$fsdir/glm_mod2
-glmpattern=w-g.pct.30.fwhm10.*
-#glmpattern=thickness.fwhm10.*
+glmpattern="w-g.pct.30.fwhm10.*"
+#glmpattern="thickness.fwhm10.*"
 #glmpattern="fwhm2.bsc.fwhm10*"
 
 export moddirpattern

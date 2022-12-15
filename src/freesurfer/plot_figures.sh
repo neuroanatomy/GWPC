@@ -8,6 +8,7 @@ if [[ $# -ne 1 ]]; then
 fi
 
 config=$1
+# works with shellcheck -x
 # shellcheck source=plot_figures_config.sh
 source "$config"
 
@@ -73,7 +74,7 @@ for surf in "${surfaces[@]}"; do
 	for (( i=0; i<${#piclabels[@]}; i++ )) ; do
 		timg="$odir"/resized/$surflabel-$((i+1)).trimmed.png
 		rimg="$odir"/resized/$surflabel-$((i+1)).png
-		convert "$timg" -gravity center -extent ${wi}x"${hi}" -resize ${wo}x${ho} "$rimg"
+		convert "$timg" -gravity center -extent "${wi}"x"${hi}" -resize ${wo}x${ho} "$rimg"
 	done
 	echo "removing intermediate images"
 	rm "$odir"/resized/*.trimmed.png
