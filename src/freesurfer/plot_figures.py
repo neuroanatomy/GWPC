@@ -13,6 +13,7 @@ from surfer import Brain, io
 import matplotlib.pylab as pl
 from matplotlib.colors import ListedColormap
 import numpy as np
+from PIL import Image
 from plot_figures_config import moddir, image, threshold, surflabel, glmdirpattern
 
 
@@ -48,27 +49,31 @@ for surf in surfaces:
     for hemi in ['lh', 'rh']:
         overlay_file = os.path.join(moddir, f"{hemi}.{surf}")
         data[hemi] = io.read_scalar_data(overlay_file.format(hemi))
-        brain = Brain("fsaverage", hemi, surflabel, background='white')
+        brain = Brain("fsaverage", hemi, surflabel, background='white', size=[512, 512])
         brain.add_data(data[hemi], hemi=hemi, colormap=my_cmap, min=-threshold, max=threshold,
-            colorbar=False)
-        fig[hemi] = mlab.screenshot()
+            colorbar=True)
+        fig[hemi + '.lat'] = mlab.screenshot()
         mlab.savefig(os.path.join(odir, f"{hemi}.{surflabel}.lat.png"))
         brain.show_view('medial')
+        fig[hemi + '.med'] = mlab.screenshot()
         mlab.savefig(os.path.join(odir, f"{hemi}.{surflabel}.med.png"))
 
-
-    brain = Brain("fsaverage", "both", "pial", background='white')
+    brain = Brain("fsaverage", "both", "pial", background='white', size=[512, 512])
     for hemi in ['lh', 'rh']:
         brain.add_data(data[hemi], hemi=hemi, colormap=my_cmap, min=-threshold, max=threshold,
-            colorbar=False)
+            colorbar=True)
 
     brain.show_view('caudal')
+    fig['caudal'] = mlab.screenshot()
     mlab.savefig(os.path.join(odir, f"combined.{surflabel}.pos.png"))
 
-    # make one image with colorbar
-    brain = Brain("fsaverage", "lh", surflabel, background='white')
-    brain.add_data(data["lh"], hemi="lh", colormap=my_cmap, min=-threshold, max=threshold,
-        colorbar=True)
-    mlab.savefig(os.path.join(odir, f"lh.{surflabel}.colorbar.png"))
+    # resize images
+    os.makedirs(os.path.join(odir, "resized"), exist_ok=True)
+    piclabels=["lh.lat", "lh.med", "rh.lat", "rh.med", "caudal"]
 
-mlab.close()
+    for i, pl in enumerate(piclabels, 1):
+        img = Image.fromarray(fig[pl])
+        img = img.crop((0, img.height*1/8, img.width, img.height*7/8))
+        img.save(os.path.join(odir, "resized", f"{surflabel}-{i}.png"))
+
+# mlab.close()
