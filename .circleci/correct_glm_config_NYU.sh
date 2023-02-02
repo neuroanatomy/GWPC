@@ -16,7 +16,7 @@ fsdir=$derived_dir/fs-6.0.0
 #moddirpattern="$fsdir/glm_!(m*|*[bsk])"
 #moddirpattern=$fsdir/glm_*_thickness
 moddirpattern=$fsdir/glm_NYU
-glmpattern=w-g.pct.30.fwhm10.*
+glmpattern="w-g.pct.30.fwhm10.*"
 #glmpattern=thickness.fwhm10.*
 #glmpattern="*"
 

@@ -22,10 +22,9 @@ if len(surfaces) == 0:
     # echo "${surfaces[0]}": not found && exit 1
     print("surfaces not found")
     sys.exit(1)
+
 # remove duplicates
-
 surfaces = {re.sub(rf"{moddir}/.?h\.", "", s) for s in surfaces}
-
 
 # Choose colormap
 cmap = pl.cm.coolwarm

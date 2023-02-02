@@ -20,6 +20,6 @@ for glmdir in "${glmdirs[@]}"; do
 	bn=$(basename "$glmdir")
 	surf=$glmdir/$bn.mgh
 	hemi=${bn:0:2} 
-	submit 10G $script_dir/run_RFT_mod.m "$surf" "$glmdir" "$fsdir"/fsaverage "$hemi".aparc.label 0.01 0.05 2 2
-	submit 2G $script_dir/run_mri_glmfit-sim.sh --glmdir "$glmdir" --mczsim 2 abs --2spaces --cwp 0.05
+	submit 10G "$script_dir"/run_RFT_mod.m "$surf" "$glmdir" "$fsdir"/fsaverage "$hemi".aparc.label 0.01 0.05 2 2
+	submit 2G "$script_dir"/run_mri_glmfit-sim.sh --glmdir "$glmdir" --mczsim 2 abs --2spaces --cwp 0.05
 done

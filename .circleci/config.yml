@@ -62,6 +62,7 @@ jobs:
             conda config --add channels r
             conda config --add channels conda-forge
             conda config --add channels defaults
+            conda install python=3.9 pysurfer
             conda install r-base r-plyr r-r.matlab
  
       - run:
@@ -70,7 +71,7 @@ jobs:
             sudo apt install -y octave
             echo "addpath('$PWD/bin/modules/surfstat');" > ~/.octaverc
             echo "addpath('$PWD/bin/modules/RFT_FDR');" >> ~/.octaverc
-            echo "addpath([getenv('FREESURFER_HOME') '/matlab'])" >> ~/.octaverc
+            echo "addpath([getenv('FREESURFER_HOME') '/matlab']);" >> ~/.octaverc
             # fix permission issue after octave installation
             sudo chown -R $(id -u -n) ~/.config
 
@@ -89,6 +90,7 @@ jobs:
             # configure the background in white
             mkdir -p ~/.config/Massachusetts\ General\ Hospital
             cp .circleci/freeview.conf ~/.config/Massachusetts\ General\ Hospital/freeview.conf
+            cp .circleci/plot_figures_config.py src/freesurfer/
 
       - run:
           name: run preprocessing of tables
@@ -103,6 +105,7 @@ jobs:
             bash src/freesurfer/run_glm.sh .circleci/run_glm_config_NYU.sh
             bash src/freesurfer/correct_glm.sh .circleci/correct_glm_config_NYU.sh
             bash src/freesurfer/plot_figures.sh .circleci/plot_figures_config_NYU.sh
+            python3 src/freesurfer/plot_figures.py
 
       - store_artifacts:
-          path: data/derived/fs-6.0.0/glm_NYU/images/w-g.pct.30.fwhm10.mod/contrast_ASD
+          path: data/derived/fs-6.0.0/glm_NYU/images2/w-g.pct.30.fwhm10.mod/contrast_ASD

@@ -1,27 +1,35 @@
 # shellcheck shell=bash
 
-function submit {
-    mem=$1
-    shift
-    mkdir -p log
-    prog=$(basename "$1")
-    sbatch  -J      "$prog" \
-            --qos   ghfc \
-            -p      ghfc \
-            --mem   "$mem" \
-            -e      log/"$prog"-%j.out \
-            -o      log/"$prog"-%j.out \
+if command -v sbatch > /dev/null; then
+    function submit {
+        mem=$1
+        shift
+        mkdir -p log
+        prog=$(basename "$1")
+        sbatch  -J      "$prog" \
+                --qos   ghfc \
+                -p      ghfc \
+                --mem   "$mem" \
+                -e      log/"$prog"-%j.out \
+                -o      log/"$prog"-%j.out \
 <<- EOF
 #!/bin/bash
 set -e
 echo "$@"
-eval "$@"
+"$@"
 EOF
-}
+    }
+else
+    function submit {
+        shift
+        echo "$@"
+        "$@"
+    }
+fi
 
 shopt -s extglob
 
-which octave &> /dev/null || module load octave
+which octave &> /dev/null || module load octave &> /dev/null || echo 'error: cannot load octave'
 
 script_dir=$(cd "$(dirname "$0")" && pwd)
 project_dir=$(cd "$script_dir" && git rev-parse --show-toplevel)

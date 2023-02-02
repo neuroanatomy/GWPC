@@ -2,4 +2,4 @@
 
 addpath(fileparts(mfilename('fullpath')))
 
-RFT_mod(argv(){})
+RFT_mod(argv(){:})
