@@ -38,7 +38,7 @@ jobs:
       - run:
           name: install surfstat
           command: |
-            wget http://www.math.mcgill.ca/keith/surfstat/surfstat.zip
+            wget https://www.math.mcgill.ca/keith/surfstat/surfstat.zip
             mkdir -p bin/modules/surfstat
             unzip surfstat.zip -d bin/modules/surfstat
             patch -p0 -d bin/modules -i ../../src/freesurfer/surfstat.diff
@@ -61,7 +61,7 @@ jobs:
           command: |
             conda config --add channels r
             conda config --add channels conda-forge
-            conda config --add channels defaults
+            # conda config --add channels defaults
             conda install python=3.9 pysurfer
             conda install r-base r-plyr r-r.matlab
  
@@ -103,7 +103,7 @@ jobs:
           command: |
             source activate
             bash src/freesurfer/run_glm.sh .circleci/run_glm_config_NYU.sh
-            bash src/freesurfer/correct_glm.sh .circleci/correct_glm_config_NYU.sh
+            DISPLAY="" bash src/freesurfer/correct_glm.sh .circleci/correct_glm_config_NYU.sh
             bash src/freesurfer/plot_figures.sh .circleci/plot_figures_config_NYU.sh
             python3 src/freesurfer/plot_figures.py
 

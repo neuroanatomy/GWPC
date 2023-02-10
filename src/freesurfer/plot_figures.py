@@ -17,10 +17,10 @@ from PIL import Image
 from plot_figures_config import moddir, image, threshold, surflabel, glmdirpattern
 
 
-surfaces=glob(f"{moddir}/?h.{glmdirpattern}/{image}")
+pattern = f"{moddir}/?h.{glmdirpattern}/{image}"
+surfaces = glob(pattern)
 if len(surfaces) == 0:
-    # echo "${surfaces[0]}": not found && exit 1
-    print("surfaces not found")
+    print(f"surfaces not found: {pattern}")
     sys.exit(1)
 
 # remove duplicates
@@ -75,4 +75,4 @@ for surf in surfaces:
         img = img.crop((0, img.height*1/8, img.width, img.height*7/8))
         img.save(os.path.join(odir, "resized", f"{surflabel}-{i}.png"))
 
-# mlab.close()
+mlab.close()
