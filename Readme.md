@@ -35,7 +35,12 @@ recon-all -subjid $subjid -i $subjanat -autorecon-all
 
 Compute grey/white matter contrast at different levels and cortical thickness for each subject:
 ```
-bash src/freesurfer/resample.sh $subjdir
+bash src/preprocessing/resample.sh $subjdir
+```
+
+Compute BSC (boundary sharpness coefficient) values for each subject:
+```
+bash src/preprocessing/bsc.sh $subjdir
 ```
 
 ## Analyses
@@ -54,5 +59,3 @@ To plot the figures of the effect for each contrast, adapt `src/freesurfer/plot_
 ```
 python3 src/freesurfer/plot_figures.py
 ```
-
-

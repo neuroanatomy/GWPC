@@ -26,10 +26,11 @@ for contrast in "${contrasts[@]}"; do
 		cp "$contrast" "$odir"/"$bn"
 	fi
 done
+contrasts=("${contrasts[@]/*\//$odir/}")
 
 if [[ -n $measure_cov ]]; then
     # create a new contrast file with all 0 except the last column
-	perl -lpe 's/\S+/0/g; s/\s*$/ 1/; exit if $.>1' "${contrasts[0]}" > "$odir"/contrast_$measure_cov
+	perl -lpe 's/\S+/0/g; s/\S+\s*$/1/; exit if $.>1' "${contrasts[0]}" > "$odir"/contrast_$measure_cov
 	contrasts+=("$odir"/contrast_"$measure_cov")
 fi
 
@@ -47,7 +48,7 @@ for measure in "${measures[@]}"; do
             mri_concat "${file_list[@]}" --o "$y_file"
             if [[ -n $measure_cov ]]; then
                 file_list2=("${subj_list[@]/#/$SUBJECTS_DIR/}")
-                file_list2=("${file_list[@]/%//surf/$hemi.$measure_cov.fwhm$width.fsaverage.mgh}")
+                file_list2=("${file_list2[@]/%//surf/$hemi.$measure_cov.fwhm$width.fsaverage.mgh}")
                 cov_file=$glmdir/$hemi.$measure_cov.fwhm$width.$model_name.mgh
                 mri_concat "${file_list2[@]}" --o "$cov_file"
                 pvr_arg="--pvr $cov_file"

@@ -78,8 +78,8 @@ jobs:
       - run:
           name: get freesurfer derived files
           command: |
-            curl -OJ https://zenodo.org/record/3416448/files/abide.w-g.pct.30.zip
-            unzip -q abide.w-g.pct.30.zip
+            curl -OJ https://zenodo.org/record/7781888/files/abide.NYU.w-g.pct.30.zip
+            unzip -q abide.NYU.w-g.pct.30.zip
 
       - run:
           name: configure freesurfer
