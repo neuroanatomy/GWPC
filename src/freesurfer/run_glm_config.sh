@@ -30,12 +30,11 @@ fi
 script_dir=$(cd "$(dirname "$0")" && pwd)
 project_dir=$(cd "$script_dir" && git rev-parse --show-toplevel)
 
-
-#mod_dir=$1
-mod_dir=$derived_dir/glm-freesurfer/mod2
-#site=${mod_dir##*mod_}
 derived_dir=$project_dir/data/derived
 fsdir=$derived_dir/fs-6.0.0
+mod_dir=$derived_dir/glm-freesurfer/mod2
+#mod_dir=$1
+#site=${mod_dir##*mod_}
 odir=$fsdir/glm_mod2
 #odir=$fsdir/glm_mod_${site}
 subj_file=$mod_dir/subject_names.txt

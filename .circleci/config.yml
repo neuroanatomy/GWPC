@@ -62,8 +62,7 @@ jobs:
             conda config --add channels r
             conda config --add channels conda-forge
             # conda config --add channels defaults
-            conda install python=3.9 pysurfer
-            conda install r-base r-plyr r-r.matlab
+            conda create --name GWPC python=3.9 pysurfer r-base r-plyr r-r.matlab
  
       - run:
           name: install octave
@@ -95,14 +94,15 @@ jobs:
       - run:
           name: run preprocessing of tables
           command: |
-            source activate
+            source activate GWPC
             Rscript src/preprocessing/fichier_commun.R
 
       - run:
           name: run glm scripts
           command: |
-            source activate
+            source activate GWPC
             bash src/freesurfer/run_glm.sh .circleci/run_glm_config_NYU.sh
+            echo display: $DISPLAY
             DISPLAY="" bash src/freesurfer/correct_glm.sh .circleci/correct_glm_config_NYU.sh
             bash src/freesurfer/plot_figures.sh .circleci/plot_figures_config_NYU.sh
             python3 src/freesurfer/plot_figures.py
