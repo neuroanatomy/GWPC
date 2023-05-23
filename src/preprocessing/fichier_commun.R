@@ -18,6 +18,7 @@ base.dir <- system(paste("cd", script.dir, "&& git rev-parse --show-toplevel"), 
 data.dir <- file.path(base.dir, "data")
 raw.dir <- file.path(data.dir, "raw")
 derived.dir <- file.path(data.dir, "derived")
+glmdir <- file.path(derived.dir, "glm-freesurfer")
 
 dir.create(derived.dir, showWarnings = FALSE)
 
