@@ -324,52 +324,78 @@ table(abide_final$DX_GROUP)
 # abide_final = restant apr?s QC
 write.table(abide_final, file=file.path(derived.dir, "abide_final.txt"), sep="\t", quote=FALSE, row.names = FALSE)
 
+# give nicer names to variables
+rename_dict <- c(SITE_ID="Site", "AGE_AT_SCAN"="age", "FIQ_total"="FIQ")
+rename_variable <- function(variable) {
+    ifelse(variable %in% names(rename_dict), rename_dict[variable], variable)
+}
 
-#creation pour analyse de tous les points irm de la matrice avec modele 1 : 
-matrix.mod1 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + DX_GROUP*SEX, data = abide_final)
-# creation d'un vecteur avec 1 pour colonne d'interet (pour afficher les couleurs des t valeurs ou p valeurs), cette colonne d'int?r?t s'appelle le contraste
-ncol(matrix.mod1)
-ASD_as_variable_of_interest <- as.numeric(colnames(matrix.mod1) == "DX_GROUPASD")
-# creation d'un vecteur avec les noms initaux (= fsid) des sujets dans le bon ordre :
-subject_names <- rownames(matrix.mod1)
-# creation d'un vecteur avec le nom des colonnes
-col_names <- colnames(matrix.mod1)
-
-glmdir <- file.path(derived.dir, "glm-freesurfer")
-mod1dir <- file.path(glmdir, "mod1")
-dir.create(mod1dir, show=F, rec=T)
-
-# on extrait la matrice dans matlab :
+# write freesurfer glm folders
 library(R.matlab)
-writeMat(con=file.path(mod1dir, "matrix_mod.mat"),  X=matrix.mod1)
-#on extrait la matrice, le vecteur de noms de sujets et le vecteur avec variable d'interet :
-writeLines(as.character(as.numeric(colnames(matrix.mod1) == "DX_GROUPASD")), con=file.path(mod1dir, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod1) == "SEXFemale")), con=file.path(mod1dir, "contrast_Female"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod1) == "AGE_AT_SCAN")), con=file.path(mod1dir, "contrast_age"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod1) == "FIQ_total")), con=file.path(mod1dir, "contrast_FIQ"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod1) == "DX_GROUPASD:SEXFemale")), con=file.path(mod1dir, "contrast_ASD_Female"), sep=" ")
-writeLines(subject_names, con=file.path(mod1dir, "subject_names.txt"), sep="\n")
-writeLines(col_names, con=file.path(mod1dir, "col_names.txt"), sep="\n")
+write.model <- function(formula, data, mod_name) {
+    terms <- attr(terms(formula),"term.labels")
+    terms2 <- sub(".*\\((.*?)[),].*", "\\1", terms)
+    unique_terms <- unique(unlist(strsplit(terms2, ':')))
+    data2 <- na.omit(data[,unique_terms])
+    
+    for (term in unique_terms) {
+        if (class(data2[[term]]) == "factor")
+            data2[[term]] <- factor(data2[[term]])
+    }
+    
+    matrix.mod <- model.matrix(formula, data = data2)
+    # creation d'un vecteur avec les noms initaux (= fsid) des sujets dans le bon ordre :
+    subject_names <- rownames(matrix.mod)
+    # creation d'un vecteur avec le nom des colonnes
+    col_names <- colnames(matrix.mod)
+    
+    mod_dir <- file.path(glmdir, mod_name)
+    dir.create(mod_dir, show=F, rec=T)
+    # on extrait la matrice dans matlab :
+    writeMat(con=file.path(mod_dir, "matrix_mod.mat"),  X=matrix.mod)
+    
+    # creation d'un vecteur avec 1 pour colonne d'interet (pour afficher les couleurs des t valeurs ou p valeurs), cette colonne d'interet s'appelle le contraste
+    for (term in terms2) {
+        sub_terms <- strsplit(term, ':')[[1]]
+        if (length(sub_terms) == 2) {
+            contrast.names <- paste(sapply(sub_terms, function(x) rename_variable(ifelse(length(levels(data2[[x]])) == 2,
+                                                                                         levels(data2[[x]])[2], x))), collapse='_')
+            col <- grepl(sprintf("%s[^:]*:%s[^:]*", sub_terms[1], sub_terms[2]), col_names)
+            contrasts <- list(t(as.character(as.numeric(col))))
+        } else {
+            col <- grepl(sprintf("^[^:]*%s[^:]*$", term), col_names)
+            ncol <- sum(col)
+            if (ncol == 1) {
+                if (class(data2[[term]]) == "factor") {
+                    contrast.names <- rename_variable(sub(term, "", col_names[col]))
+                } else {
+                    contrast.names <- rename_variable(col_names[col])
+                }
+                contrasts <- list(t(as.character(as.numeric(col))))
+            } else if (ncol > 1) {
+                if (class(data2[[term]]) == "factor") {
+                    contrasts <- list(t(sapply(grep(term, col_names, value=T), function(x) as.numeric(col_names == x))))
+                    contrast.names <- rename_variable(term)
+                } else {
+                    nums <- sub("^.*?(\\d+)$" ,"\\1", col_names[col])
+                    contrasts <- lapply(nums, function(i) t(as.character(as.numeric(grepl(paste0(term, ".*", i, "$"), col_names)))))
+                    contrast.names <- paste0(rename_variable(term), nums)
+                }
+            }
+        }
+        for (i in 1:length(contrasts)) {
+            write.table(contrasts[i], file.path(mod_dir, paste0("contrast_", contrast.names[i])), row.names=F, col.names=F, quote=F)
+        }
+    }
+    writeLines(subject_names, con=file.path(mod_dir, "subject_names.txt"), sep="\n")
+    writeLines(col_names, con=file.path(mod_dir, "col_names.txt"), sep="\n")
+}
 
+# model 1: with diagnosis sex interaction
+write.model(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + DX_GROUP*SEX, data = abide_final, "mod1")
 
-#creation pour analyse de tous les points irm de la matrice avec modele 2 : 
-matrix.mod2 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total, data = abide_final)
-
-subject_names2 <- rownames(matrix.mod2)
-col_names2 <- colnames(matrix.mod2)
-
-mod2dir <- file.path(glmdir, "mod2")
-dir.create(mod2dir, show=F, rec=T)
-writeMat(con=file.path(mod2dir, "matrix_mod.mat"),  X=matrix.mod2)
-writeLines(as.character(as.numeric(colnames(matrix.mod2) == "DX_GROUPASD")), con=file.path(mod2dir, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod2) == "SEXFemale")), con=file.path(mod2dir, "contrast_Female"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod2) == "AGE_AT_SCAN")), con=file.path(mod2dir, "contrast_age"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod2) == "FIQ_total")), con=file.path(mod2dir, "contrast_FIQ"), sep=" ")
-contrast_Site <- t(sapply(grep("^SITE_", col_names2, value=T), function(x) as.numeric(colnames(matrix.mod2) == x)))
-write.table(contrast_Site, file.path(mod2dir, "contrast_Site"), row.names=F, col.names=F)
-writeLines(subject_names2, con=file.path(mod2dir, "subject_names.txt"), sep="\n")
-writeLines(col_names2, con=file.path(mod2dir, "col_names.txt"), sep="\n")
-
+# model 2: without diagnosis sex interaction
+write.model(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total, data = abide_final, "mod2")
 
 # modele avec l'interaction diagnostic - site
 matrix.mod3 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + DX_GROUP*SITE_ID, data = abide_final)
@@ -396,23 +422,10 @@ for (site in site_list) {
     data_site <- subset(abide_final, abide_final$SITE_ID==site)
     n_sexes <- length(unique(data_site$SEX))
     if (n_sexes == 1) {
-        matrix.mod_site <- model.matrix(~ DX_GROUP + AGE_AT_SCAN + FIQ_total, data = data_site)
+        write.model(~ DX_GROUP + AGE_AT_SCAN + FIQ_total, data = data_site, paste0("mod_", site))
     } else {
-        matrix.mod_site <- model.matrix(~ DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total, data = data_site)
+        write.model(~ DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total, data = data_site, paste0("mod_", site))
     }
-    subject_names_site <- rownames(matrix.mod_site)
-    col_names_site <- colnames(matrix.mod_site)
-    mod_dir_site <- file.path(glmdir, paste0("mod_", site))
-    dir.create(mod_dir_site, show=F, rec=T)
-    writeMat(con=file.path(mod_dir_site, "matrix_mod.mat"),  X=matrix.mod_site)
-    writeLines(as.character(as.numeric(col_names_site == "DX_GROUPASD")), con=file.path(mod_dir_site, "contrast_ASD"), sep=" ")
-    if (n_sexes > 1) {
-        writeLines(as.character(as.numeric(col_names_site == "SEXFemale")), con=file.path(mod_dir_site, "contrast_Female"), sep=" ")
-    }
-    writeLines(as.character(as.numeric(col_names_site == "AGE_AT_SCAN")), con=file.path(mod_dir_site, "contrast_age"), sep=" ")
-    writeLines(as.character(as.numeric(col_names_site == "FIQ_total")), con=file.path(mod_dir_site, "contrast_FIQ"), sep=" ")
-    writeLines(subject_names_site, con=file.path(mod_dir_site, "subject_names.txt"), sep="\n")
-    writeLines(col_names_site, con=file.path(mod_dir_site, "col_names.txt"), sep="\n")
 }
 writeLines(site_list, con=file.path(glmdir, "sites.txt"))
 
@@ -431,54 +444,13 @@ for (site in unique(abide_final_Sauf_10$SITE_ID)) {
 abide_final_Sauf_10$SITE_ID <- factor(abide_final_Sauf_10$SITE_ID)
 
 # matrice pour abide_final_Sauf_10
-matrix.mod10 <- model.matrix(~ DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total + SITE_ID, data = abide_final_Sauf_10)
-subject_names10 <- rownames(matrix.mod10)
-col_names10 <- colnames(matrix.mod10)
-mod10dir <- file.path(glmdir, "sauf_10")
-dir.create(mod10dir, show=F, rec=T)
-writeMat(con=file.path(mod10dir, "matrix_mod.mat"),  X=matrix.mod10)
-writeLines(as.character(as.numeric(colnames(matrix.mod10) == "DX_GROUPASD")), con=file.path(mod10dir, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod10) == "SEXFemale")), con=file.path(mod10dir, "contrast_Female"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod10) == "AGE_AT_SCAN")), con=file.path(mod10dir, "contrast_age"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod10) == "FIQ_total")), con=file.path(mod10dir, "contrast_FIQ"), sep=" ")
-writeLines(subject_names10, con=file.path(mod10dir, "subject_names.txt"), sep="\n")
-writeLines(col_names10, con=file.path(mod10dir, "col_names.txt"), sep="\n")
-
+write.model(~ DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total + SITE_ID, data = abide_final_Sauf_10, "sauf_10")
 
 # modele avec l'interaction diagnostic - age
-matrix.mod4 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + DX_GROUP*AGE_AT_SCAN, data = abide_final)
-
-subject_names4 <- rownames(matrix.mod4)
-col_names4 <- colnames(matrix.mod4)
-
-mod4dir <- file.path(glmdir, "mod4")
-dir.create(mod4dir, show=F, rec=T)
-writeMat(con=file.path(mod4dir, "matrix_mod.mat"),  X=matrix.mod4)
-writeLines(as.character(as.numeric(colnames(matrix.mod4) == "DX_GROUPASD")), con=file.path(mod4dir, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod4) == "SEXFemale")), con=file.path(mod4dir, "contrast_Female"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod4) == "AGE_AT_SCAN")), con=file.path(mod4dir, "contrast_age"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod4) == "FIQ_total")), con=file.path(mod4dir, "contrast_FIQ"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod4) == "DX_GROUPASD:AGE_AT_SCAN")), con=file.path(mod4dir, "contrast_ASD_age"), sep=" ")
-writeLines(subject_names4, con=file.path(mod4dir, "subject_names.txt"), sep="\n")
-writeLines(col_names4, con=file.path(mod4dir, "col_names.txt"), sep="\n")
-
+write.model(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + DX_GROUP*AGE_AT_SCAN, data = abide_final, "mod4")
 
 # modele sans le site en covariable
-matrix.mod5 <- model.matrix(~ DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total, data = abide_final)
-
-subject_names5 <- rownames(matrix.mod5)
-col_names5 <- colnames(matrix.mod5)
-
-mod5dir <- file.path(glmdir, "mod5")
-dir.create(mod5dir, show=F, rec=T)
-writeMat(con=file.path(mod5dir, "matrix_mod.mat"),  X=matrix.mod5)
-writeLines(as.character(as.numeric(colnames(matrix.mod5) == "DX_GROUPASD")), con=file.path(mod5dir, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod5) == "SEXFemale")), con=file.path(mod5dir, "contrast_Female"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod5) == "AGE_AT_SCAN")), con=file.path(mod5dir, "contrast_age"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod5) == "FIQ_total")), con=file.path(mod5dir, "contrast_FIQ"), sep=" ")
-writeLines(subject_names5, con=file.path(mod5dir, "subject_names.txt"), sep="\n")
-writeLines(col_names5, con=file.path(mod5dir, "col_names.txt"), sep="\n")
-
+write.model(~ DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total, data = abide_final, "mod5")
 
 # modele avec les interactions variables-site (not working because too much variability between columns for FreeSurfer glm)
 matrix.mod6 <- model.matrix(~ (DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total) * SITE_ID, data = abide_final)
@@ -508,110 +480,17 @@ writeLines(col_names6, con=file.path(mod6dir, "col_names.txt"), sep="\n")
 
 
 # model with motion as covariate
-matrix.mod7 <- model.matrix(~DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total + SITE_ID + motion, data = abide_final)
-
-subject_names7 <- rownames(matrix.mod7)
-col_names7 <- colnames(matrix.mod7)
-
-mod7dir <- file.path(glmdir, "mod7")
-dir.create(mod7dir, show=F, rec=T)
-writeMat(con=file.path(mod7dir, "matrix_mod.mat"),  X=matrix.mod7)
-writeLines(as.character(as.numeric(colnames(matrix.mod7) == "DX_GROUPASD")), con=file.path(mod7dir, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod7) == "SEXFemale")), con=file.path(mod7dir, "contrast_Female"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod7) == "AGE_AT_SCAN")), con=file.path(mod7dir, "contrast_age"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod7) == "FIQ_total")), con=file.path(mod7dir, "contrast_FIQ"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod7) == "motion")), con=file.path(mod7dir, "contrast_motion"), sep=" ")
-contrast_Site <- t(sapply(grep("^SITE_", col_names7, value=T), function(x) as.numeric(colnames(matrix.mod7) == x)))
-write.table(contrast_Site, file.path(mod7dir, "contrast_Site"), row.names=F, col.names=F)
-writeLines(subject_names7, con=file.path(mod7dir, "subject_names.txt"), sep="\n")
-writeLines(col_names7, con=file.path(mod7dir, "col_names.txt"), sep="\n")
+write.model(~DX_GROUP + SEX + AGE_AT_SCAN + FIQ_total + SITE_ID + motion, data = abide_final, "mod7")
 
 # modele en enlevant NYU
 data_nonNYU <- subset(abide_final, abide_final$SITE_ID != "NYU")
 data_nonNYU$SITE_ID <- factor(data_nonNYU$SITE_ID)
 
-matrix.mod_nonNYU <- model.matrix(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total, data = data_nonNYU)
-subject_names_nonNYU <- rownames(matrix.mod_nonNYU)
-col_names_nonNYU <- colnames(matrix.mod_nonNYU)
-mod_dir_nonNYU <- file.path(glmdir, "mod_nonNYU")
-dir.create(mod_dir_nonNYU, show=F, rec=T)
-writeMat(con=file.path(mod_dir_nonNYU, "matrix_mod.mat"),  X=matrix.mod_nonNYU)
-writeLines(as.character(as.numeric(col_names_nonNYU == "DX_GROUPASD")), con=file.path(mod_dir_nonNYU, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(col_names_nonNYU == "SEXFemale")), con=file.path(mod_dir_nonNYU, "contrast_Female"), sep=" ")
-writeLines(as.character(as.numeric(col_names_nonNYU == "AGE_AT_SCAN")), con=file.path(mod_dir_nonNYU, "contrast_age"), sep=" ")
-writeLines(as.character(as.numeric(col_names_nonNYU == "FIQ_total")), con=file.path(mod_dir_nonNYU, "contrast_FIQ"), sep=" ")
-contrast_Site <- t(sapply(grep("^SITE_", col_names_nonNYU, value=T), function(x) as.numeric(colnames(matrix.mod_nonNYU) == x)))
-write.table(contrast_Site, file.path(mod_dir_nonNYU, "contrast_Site"), row.names=F, col.names=F)
-writeLines(subject_names_nonNYU, con=file.path(mod_dir_nonNYU, "subject_names.txt"), sep="\n")
-writeLines(col_names_nonNYU, con=file.path(mod_dir_nonNYU, "col_names.txt"), sep="\n")
+write.model(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total, data = data_nonNYU, "mod_nonNYU")
 
 # modele avec effet de polynomial de l'age
 np <- 4
-matrix.mod8 <- model.matrix(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total, data = abide_final)
-
-subject_names8 <- rownames(matrix.mod8)
-col_names8 <- colnames(matrix.mod8)
-
-mod8dir <- file.path(glmdir, "mod8")
-dir.create(mod8dir, show=F, rec=T)
-writeMat(con=file.path(mod8dir, "matrix_mod.mat"),  X=matrix.mod8)
-writeLines(as.character(as.numeric(colnames(matrix.mod8) == "DX_GROUPASD")), con=file.path(mod8dir, "contrast_ASD"), sep=" ")
-writeLines(as.character(as.numeric(colnames(matrix.mod8) == "SEXFemale")), con=file.path(mod8dir, "contrast_Female"), sep=" ")
-for (i in 1:np) {
-	writeLines(as.character(as.numeric(grepl(paste0("AGE_AT_SCAN.*", i, "$"), colnames(matrix.mod8)))), con=file.path(mod8dir, paste0("contrast_age", i)), sep=" ")
-}
-writeLines(as.character(as.numeric(colnames(matrix.mod8) == "FIQ_total")), con=file.path(mod8dir, "contrast_FIQ"), sep=" ")
-contrast_Site <- t(sapply(grep("^SITE_", col_names8, value=T), function(x) as.numeric(colnames(matrix.mod8) == x)))
-write.table(contrast_Site, file.path(mod8dir, "contrast_Site"), row.names=F, col.names=F)
-writeLines(subject_names8, con=file.path(mod8dir, "subject_names.txt"), sep="\n")
-writeLines(col_names8, con=file.path(mod8dir, "col_names.txt"), sep="\n")
-
-write.model <- function(formula, data, mod_name) {
-    terms <- attr(terms(formula),"term.labels")
-    terms2 <- sub(".*\\((.*?)[),].*", "\\1", terms)
-    data2 <- na.omit(data[,terms2])
-    
-    for (term in terms2) {
-        if (class(data2[[term]]) == "factor")
-            data2[[term]] <- factor(data2[[term]])
-    }
-    
-    matrix.mod <- model.matrix(formula, data = data2)
-    subject_names <- rownames(matrix.mod)
-    col_names <- colnames(matrix.mod)
-    
-    mod_dir <- file.path(glmdir, mod_name)
-    dir.create(mod_dir, show=F, rec=T)
-    writeMat(con=file.path(mod_dir, "matrix_mod.mat"),  X=matrix.mod)
-    for (term in terms2) {
-        col <- grepl(term, col_names)
-        ncol <- sum(col)
-        if (ncol == 1) {
-            if (class(data2[[term]]) == "factor") {
-                contrast.names <- sub(term, "", col_names[col])
-            } else {
-                contrast.names <- col_names[col]
-            }
-            contrasts <- list(t(as.character(as.numeric(col))))
-        } else if (ncol > 1) {
-            if (class(data2[[term]]) == "factor") {
-                contrasts <- list(t(sapply(grep(term, col_names, value=T), function(x) as.numeric(col_names == x))))
-                contrast.names <- term
-            } else {
-                nums <- sub("^.*?(\\d+)$" ,"\\1", col_names[col])
-                contrasts <- lapply(nums, function(i) t(as.character(as.numeric(grepl(paste0(term, ".*", i, "$"), col_names)))))
-                contrast.names <- paste0(term, nums)
-            }
-        }
-        for (i in 1:length(contrasts)) {
-            write.table(contrasts[i], file.path(mod_dir, paste0("contrast_", contrast.names[i])), row.names=F, col.names=F, quote=F)
-        }
-    }
-    writeLines(subject_names, con=file.path(mod_dir, "subject_names.txt"), sep="\n")
-    writeLines(col_names, con=file.path(mod_dir, "col_names.txt"), sep="\n")
-}
-
-np <- 4
+write.model(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total, data = abide_final, "mod8b")
 
 # modele avec effet poly de l'age et motion
 write.model(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total + motion, abide_final, "mod2_full")
