@@ -57,7 +57,7 @@ for measure in "${measures[@]}"; do
             fi
 
             unset c_arg
-            for (( i=0; i<${#contrasts[*]}; ++i )); do c_arg+=(--C "${contrasts[$i]/*\/$odir/}"); done
+            for (( i=0; i<${#contrasts[*]}; ++i )); do echo ${contrasts[$i]}; c_arg+=(--C "${contrasts[$i]}"); done
 
             submit 5G mri_glmfit --surf fsaverage $hemi \
                                  --X "$matrix" \

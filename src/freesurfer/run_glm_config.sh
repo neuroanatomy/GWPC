@@ -16,7 +16,7 @@ if command -v sbatch > /dev/null; then
 #!/bin/bash
 set -e
 echo "$@"
-"$@"
+$@
 EOF
     }
 else
