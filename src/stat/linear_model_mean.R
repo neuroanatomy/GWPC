@@ -117,9 +117,36 @@ forest(res.meta)
 
 res.meta_nonNYU <- metagen(TE=TE, seTE=seTE, studlab=studlab,
                            data=subset(data_meta, studlab != 'NYU'))
+res.meta_nonNYU$n.c <- sapply(sites, function(st){sum(subset(dd, site==st, DX_GROUP) == "Control")})
+res.meta_nonNYU$n.e <- sapply(sites, function(st){sum(subset(dd, site==st, DX_GROUP) == "ASD")})
+res.meta_nonNYU$label.e <- 'ASD'
 forest(res.meta_nonNYU)
 
 # look at residuals on nyu
-dd_nyu <- subset(dd, site='NYU')
-mod_nyu <- lm(mgwc~DX_GROUP+AGE_AT_SCAN+FIQ_total, data=dd_nyu)
-plot(mod_nyu)
+dd_nyu <- subset(dd, site=='NYU')
+mod_nyu <- lm(mgwc~DX_GROUP+AGE_AT_SCAN+SEX+FIQ_total, data=dd_nyu)
+# plot(mod_nyu)
+
+# global linear model
+mod <- lm(mgwc~DX_GROUP+AGE_AT_SCAN+SEX+FIQ_total+site, data=dd)
+
+# meta analysis on cohen's d from residuals
+data_meta_cont <- as.data.frame(t(sapply(sites, function(st){
+  site_dd <- subset(dd, site==st)
+  if (length(unique(site_dd$SEX)==1)) {
+    mod <- lm(mgwc~AGE_AT_SCAN+FIQ_total, data=site_dd)
+  } else{
+    mod <- lm(mgwc~AGE_AT_SCAN+SEX+FIQ_total, data=site_dd)
+  }
+  res <- resid(mod)
+  res.e <- res[site_dd$DX_GROUP=='ASD']
+  res.c <- res[site_dd$DX_GROUP=='Control']
+  return(c(n.e=length(res.e), mean.e=mean(res.e), sd.e=sd(res.e),
+           n.c=length(res.c), mean.c=mean(res.c), sd.c=sd(res.c)))
+}, simplify = TRUE)))
+data_meta_cont$study <- sites
+
+res.meta_cont <- metacont(n.e=n.e, mean.e=mean.e, sd.e=sd.e,
+                     n.c=n.c, mean.c=mean.c, sd.c=sd.c,
+                     studlab=study, data=data_meta_cont)
+forest(res.meta_cont)

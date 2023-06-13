@@ -62,7 +62,8 @@ gwc <- do.call(rbind, lapply(c("lh", "rh"), function(hemi) {
 
 nv <- nrow(gwc)
 
-abide_final<-read.table(file.path(derived.dir, "abide_final.txt"), sep = '\t', check.names = FALSE, header = TRUE)
+abide_final<-read.table(file.path(derived.dir, "abide_final.txt"), sep = '\t',
+                        check.names = FALSE, header = TRUE, stringsAsFactors = TRUE)
 row.names(abide_final) <- abide_final$fsid
 
 # on veut comme référence pour le diagnostic Control et pour le SEX Male :
