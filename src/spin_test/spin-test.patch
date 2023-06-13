@@ -1,0 +1,88 @@
+diff --git a/scripts/SpinPermuFS.m b/scripts/SpinPermuFS.m
+index c002662..731a708 100644
+--- a/scripts/SpinPermuFS.m
++++ b/scripts/SpinPermuFS.m
+@@ -29,8 +29,8 @@ function SpinPermuFS(readleft,readright,permno,wsname)
+ fsmatlab = sprintf('%s/matlab',fshome);
+ path(path,fsmatlab);
+ %read the data saved in csv
+-datal=importdata(readleft); datal = datal.data(); % .data() part may or may not be needed
+-datar=importdata(readright);datar = datar.data(); % .data() part may or may not be needed
++datal=importdata(readleft); % datal = datal.data(); % .data() part may or may not be needed
++datar=importdata(readright); % datar = datar.data(); % .data() part may or may not be needed
+ %For an annotation file, please used the following command to load the data
+ % [Vl, dataL, ctl] = read_annotation(readleft);
+ % [Vr, dataR, ctr] = read_annotation(readright);
+@@ -63,7 +63,7 @@ function SpinPermuFS(readleft,readright,permno,wsname)
+ [verticesr, ~] = freesurfer_read_surf(fullfile(fshome,'subjects/fsaverage5/surf/rh.sphere'));
+ 
+ 
+-rng(0);
++%rng(0);
+ %Use rng to initialize the random generator for reproducible results.
+ %initialize variables to save rotation
+ bigrotl=[];
+diff --git a/scripts/nearestneighbour.m b/scripts/nearestneighbour.m
+index 97623e5..b6aae7a 100644
+--- a/scripts/nearestneighbour.m
++++ b/scripts/nearestneighbour.m
+@@ -94,7 +94,7 @@
+ 
+ % Copyright 2006 Richard Brown. This code may be freely used and
+ % distributed, so long as it maintains this copyright line
+-error(nargchk(1, Inf, nargin, 'struct'));
++% error(nargchk(1, Inf, nargin, 'struct'));
+ 
+ % Default parameters
+ userParams.NumberOfNeighbours = []    ; % Finds one
+diff --git a/scripts/pvalvsNull.m b/scripts/pvalvsNull.m
+index 7fdde42..b73d4bb 100644
+--- a/scripts/pvalvsNull.m
++++ b/scripts/pvalvsNull.m
+@@ -1,4 +1,4 @@
+-function pval=pvalvsNull(readleft1,readright1,readleft2,readright2,permno,wsname, v_exclude_left, v_exclude_right)
++function [pval, realrho, meanrho, stdrho, pval2]=pvalvsNull(readleft1,readright1,readleft2,readright2,permno,wsname, v_exclude_left, v_exclude_right)
+ % Calculate the p-value of correlation between two surface maps based on
+ % the null distribution of spins of map 1
+ % FORMAT pvalvsNull(readleft1,readright1,readleft2,readright2,permno,wsname)
+@@ -24,10 +24,10 @@
+ load(wsname)
+ 
+ %read the data saved in csv and merge left and right surfaces into one
+-datal1=importdata(readleft1); datal1 = datal1.data(); % .data() part may or may not be needed
+-datar1=importdata(readright1); datar1 = datar1.data();
+-datal2=importdata(readleft2); datal2 = datal2.data();
+-datar2=importdata(readright2); datar2 = datar2.data();
++datal1=importdata(readleft1); % datal1 = datal1.data(); % .data() part may or may not be needed
++datar1=importdata(readright1); % datar1 = datar1.data();
++datal2=importdata(readleft2); % datal2 = datal2.data();
++datar2=importdata(readright2); % datar2 = datar2.data();
+ 
+ % Label medial wall vertices with NaN (07/31/2020):
+ datal1(v_exclude_left) = NaN;
+@@ -39,14 +39,22 @@
+ data2=cat(1,datal2,datar2);
+ %calculate the real Pearson's correlation between two interested maps
+ 
+-realrho=corr(data1,data2, 'rows','complete'); % 'rows','complete' to exclude NaN's
++indx = ~(isnan(data1) | isnan(data2)); % more compatible way to exclude NaN's
++realrho=corr(data1(indx),data2(indx));
+  
+ % test the observed rho against null described by SpinPermu
+ nullrho=[];
+ for i=1:permno
+ tempdata=cat(2,bigrotl(i,:),bigrotr(i,:))';
+-nullrho=cat(1,nullrho,corr(tempdata,data2, 'rows','complete')); % 'rows','complete' to exclude NaN's
++indx = ~(isnan(tempdata) | isnan(data2));
++nullrho=cat(1,nullrho,corr(tempdata(indx),data2(indx))); % indx to exclude NaN's
+ end
+ %assuming sign is preserved, calculate the probability that the observed
+ %correlation coeffcient is above the null distribution
+-pval=length(find(abs(nullrho)>abs(realrho)))/permno; % added abs() 07/31/2020
++% pval=length(find(abs(nullrho)>abs(realrho)))/permno; % added abs() 07/31/2020
++% pval=min(length(find(nullrho>realrho)), length(find(nullrho<realrho)))/permno*2;
++pval=length(find(nullrho>realrho))/permno;
++meanrho=mean(nullrho);
++stdrho=std(nullrho);
++% pval2=min(normcdf(realrho, 0, stdrho), normcdf(realrho, 0, stdrho, 'upper')) * 2; % two-tailed p-value
++pval2=normcdf(realrho, 0, stdrho, 'upper'); % one-tailed p-value
