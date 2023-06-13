@@ -489,9 +489,12 @@ data_nonNYU$SITE_ID <- factor(data_nonNYU$SITE_ID)
 
 write.model(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total, data = data_nonNYU, "mod_nonNYU")
 
+# model by removing NYU with motion as covariate
+write.model(~ DX_GROUP + SEX + SITE_ID + AGE_AT_SCAN + FIQ_total + motion, data = data_nonNYU, "mod7_nonNYU")
+
 # modele avec effet de polynomial de l'age
 np <- 4
-write.model(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total, data = abide_final, "mod8b")
+write.model(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total, data = abide_final, "mod8")
 
 # modele avec effet poly de l'age et motion
 write.model(~ DX_GROUP + SEX + SITE_ID + poly(AGE_AT_SCAN, np) + FIQ_total + motion, abide_final, "mod2_full")

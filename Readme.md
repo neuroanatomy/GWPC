@@ -12,7 +12,7 @@ One can create a directory `bin/modules` and put `surfstat` and `RFT_FDR` in.
 ### Octave
 - add the modules to `~/.octaverc` (you may need to adapt `surfstat` and `RFT_FDR` paths to match yours):
 ```
-echo "addpath('$PWD/bin/modules/surfstat');" > ~/.octaverc
+echo "addpath('$PWD/bin/modules/surfstat');" >> ~/.octaverc
 echo "addpath('$PWD/bin/modules/RFT_FDR');" >> ~/.octaverc
 echo "addpath([getenv('FREESURFER_HOME') '/matlab']);" >> ~/.octaverc
 ```
@@ -25,7 +25,7 @@ patch -p0 -d bin/modules -i ../../src/freesurfer/surfstat.diff
 
 Combine and format abide 1&2 tables for GLM analyses:
 ```
-Rscript src/preprocessing/fichier_commun.R
+Rscript src/preprocessing/prepare_phenotypes.R
 ```
 
 Run FreeSurfer recon-all pipeline on each subject:

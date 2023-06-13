@@ -11,19 +11,19 @@ import subprocess
 import re
 # import shutil
 
-cinq = "/Volumes/cinq"
+data_dir = "/path/to/data_dir"
 
 # Abide 1
-# idir = os.path.join(cinq, "rto/data/abide/_orig/raw_nii")
-# odir = os.path.join(cinq, "rto/data/abide/mcflirt")
+# idir = os.path.join(data_dir, "abide/_orig/raw_nii")
+# odir = os.path.join(data_dir, "abide/mcflirt")
 # siteTemplate = "*"
 # sessionTemplate = "ses*"
 # functionalTemplate = "rest_1/rest.nii.gz"
 # anatomicalTemplate = "anat_1/mprage.nii.gz"
 
 # Abide 2
-idir = os.path.join(cinq, "rto/data/abide2all/data/RawData")
-odir = os.path.join(cinq, "rto/data/abide2all/data/mcflirt")
+idir = os.path.join(data_dir, "abide2all/data/RawData")
+odir = os.path.join(data_dir, "abide2all/data/mcflirt")
 siteTemplate = "*"
 sessionTemplate = "ses*"
 functionalTemplate = "func/*_task-rest_*bold.nii.gz"
@@ -55,7 +55,9 @@ for site_dir in site_dirs:
                                         str(session_index), "run_" + str(run_index + 1))
                 os.makedirs(run_path, exist_ok=True)
                 ofile = os.path.join(run_path, "rest.nii.gz")
-                subprocess.run(["fslmaths", functional_MRI, ofile, "-odt", "float"], check=True)
+                subprocess.run(["fslmaths", functional_MRI,
+                               ofile, "-odt", "float"], check=True)
                 # os.link(functional_MRI, ofile)
 
-                subprocess.run(["mcflirt", "-in", ofile, "-rmsrel"], check=True)
+                subprocess.run(
+                    ["mcflirt", "-in", ofile, "-rmsrel"], check=True)

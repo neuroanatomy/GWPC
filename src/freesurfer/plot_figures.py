@@ -27,7 +27,8 @@ if len(surfaces) == 0:
     sys.exit(1)
 
 # remove duplicates
-surfaces = list({re.sub(rf"{moddir}/.?h\.", "", s) for s in surfaces})
+surfaces = list(
+    {re.sub(r"[lr]h\.", "", os.path.relpath(s, moddir)) for s in surfaces})
 
 # Choose colormap
 cmap = pl.cm.coolwarm
@@ -95,4 +96,8 @@ for surf in surfaces:
         img = img.crop((0, img.height*1/8, img.width, img.height*7/8))
         img.save(os.path.join(odir, "resized", f"{surflabel}-{i}.png"))
 
-mlab.close()
+try:
+    mlab.close()
+    print("Mayavi window closed successfully.")
+except AttributeError:
+    print("No Mayavi window was opened.")
